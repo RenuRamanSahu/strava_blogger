@@ -13,6 +13,10 @@ async def verify(request: Request):
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
 
+    print("MODE:", mode)
+    print("TOKEN:", token)
+    print("CHALLENGE:", challenge)
+
     if mode == "subscribe" and token == VERIFY_TOKEN:
         return {"hub.challenge": challenge}
 

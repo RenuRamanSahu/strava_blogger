@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 import os
 import requests
+import traceback
 from requests.auth import HTTPBasicAuth
 from google import genai
 from google.genai import types
@@ -143,6 +144,8 @@ async def webhook(request: Request):
     activity_id = data.get("object_id")
     aspect_type = data.get("aspect_type")
 
+    print("Webhook payload:", data)
+
     if object_type != "activity" or not activity_id:
         return {"status": "ignored", "reason": "not an activity event"}
 
@@ -160,9 +163,14 @@ async def webhook(request: Request):
             "post_id": publish_response.get("id"),
         }
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        print("Error processing webhook:", exc)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
 
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
 
 
 

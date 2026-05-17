@@ -37,9 +37,7 @@ def get_activity(activity_id):
 
 def generate_blog(activity):
 
-    distance_km = round(activity["distance"] / 1000, 2)
-
-    moving_time_min = round(activity["moving_time"] / 60)
+    print(activity)
 
     prompt = f"""
     Write a motivational running blog post.

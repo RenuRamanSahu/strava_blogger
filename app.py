@@ -21,3 +21,12 @@ async def verify(request: Request):
         return {"hub.challenge": challenge}
 
     return {"error": "verification failed"}
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+
+    print("STRAVA EVENT RECEIVED:")
+    print(data)
+
+    return {"status": "received"}

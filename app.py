@@ -8,7 +8,12 @@ from google.genai import types
 app = FastAPI(title="Strava AI Blogger Webhook")
 
 VERIFY_TOKEN = os.getenv("STRAVA_VERIFY_TOKEN", "strava_verify_secret")
+STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "116452")
+STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET", "e257784272d895cc17afaa628793efd999b3eaa4")
 STRAVA_ACCESS_TOKEN = os.getenv("STRAVA_ACCESS_TOKEN")
+STRAVA_REFRESH_TOKEN = os.getenv("STRAVA_REFRESH_TOKEN")
+STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
+STRAVA_ACTIVITY_URL = "https://www.strava.com/api/v3/activities"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 WP_URL = os.getenv("WP_URL", "https://renuramansahu.com/wp-json/wp/v2/posts")
 WP_USERNAME = os.getenv("WP_USERNAME", "admin")
@@ -20,13 +25,42 @@ if GEMINI_API_KEY:
 client_genai = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else genai.Client()
 
 
+def refresh_strava_access_token() -> str:
+    global STRAVA_ACCESS_TOKEN, STRAVA_REFRESH_TOKEN
+
+    if not STRAVA_REFRESH_TOKEN:
+        raise RuntimeError("STRAVA_REFRESH_TOKEN is not configured")
+
+    payload = {
+        "client_id": STRAVA_CLIENT_ID,
+        "client_secret": STRAVA_CLIENT_SECRET,
+        "grant_type": "refresh_token",
+        "refresh_token": STRAVA_REFRESH_TOKEN,
+    }
+
+    response = requests.post(STRAVA_TOKEN_URL, data=payload)
+    response.raise_for_status()
+    token_data = response.json()
+
+    STRAVA_ACCESS_TOKEN = token_data.get("access_token")
+    STRAVA_REFRESH_TOKEN = token_data.get("refresh_token", STRAVA_REFRESH_TOKEN)
+    print("Refreshed Strava access token")
+    return STRAVA_ACCESS_TOKEN
+
+
 def get_activity(activity_id: str) -> dict:
     if not STRAVA_ACCESS_TOKEN:
         raise RuntimeError("STRAVA_ACCESS_TOKEN is not configured")
 
-    url = f"https://www.strava.com/api/v3/activities/{activity_id}"
+    url = f"{STRAVA_ACTIVITY_URL}/{activity_id}"
     headers = {"Authorization": f"Bearer {STRAVA_ACCESS_TOKEN}"}
     response = requests.get(url, headers=headers)
+
+    if response.status_code == 401:
+        refresh_strava_access_token()
+        headers = {"Authorization": f"Bearer {STRAVA_ACCESS_TOKEN}"}
+        response = requests.get(url, headers=headers)
+
     response.raise_for_status()
     return response.json()
 

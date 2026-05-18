@@ -103,7 +103,7 @@ async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncCl
     post_data = {
         "title": title,
         "content": html_content,
-        "status": "draft"  # Keeps the post as a draft for review before going live
+        "status": "publish"  # Publishes the post to my blog
     }
     
     print(f"Uploading draft post to {WP_SITE_URL}...")

@@ -1,176 +1,162 @@
-from fastapi import FastAPI, HTTPException, Request
 import os
-import requests
-import traceback
-from requests.auth import HTTPBasicAuth
+import base64
+from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import httpx
 from google import genai
 from google.genai import types
 
-app = FastAPI(title="Strava AI Blogger Webhook")
+app = FastAPI()
 
-VERIFY_TOKEN = os.getenv("STRAVA_VERIFY_TOKEN", "strava_verify_secret")
-STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "116452")
-STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET", "e257784272d895cc17afaa628793efd999b3eaa4")
-STRAVA_ACCESS_TOKEN = os.getenv("STRAVA_ACCESS_TOKEN")
-STRAVA_REFRESH_TOKEN = os.getenv("STRAVA_REFRESH_TOKEN")
-STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
-STRAVA_ACTIVITY_URL = "https://www.strava.com/api/v3/activities"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-WP_URL = os.getenv("WP_URL", "https://renuramansahu.com/wp-json/wp/v2/posts")
-WP_USERNAME = os.getenv("WP_USERNAME", "admin")
-WP_APPLICATION_PASSWORD = os.getenv("WP_APPLICATION_PASSWORD", "mcXD YJmp e2D6 N3XM 8cmZ 55TH")
+# --- CONFIGURATION (Loaded Securely From Render Environment variables) ---
+STRAVA_VERIFY_TOKEN = os.environ.get("STRAVA_VERIFY_TOKEN")
+STRAVA_CLIENT_ID = os.environ.get("STRAVA_CLIENT_ID")
+STRAVA_CLIENT_SECRET = os.environ.get("STRAVA_CLIENT_SECRET")
+STRAVA_REFRESH_TOKEN = os.environ.get("STRAVA_REFRESH_TOKEN")
 
-if GEMINI_API_KEY:
-    os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+WP_USERNAME = os.environ.get("WP_USERNAME")
+WP_APP_PASSWORD = os.environ.get("WP_APPLICATION_PASSWORD")
+WP_SITE_URL = os.environ.get("WP_SITE_URL", "https://renuramansahu.com")
 
-client_genai = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else genai.Client()
+# Pydantic schema enforcing structure for incoming Strava alerts
+class StravaWebhookPayload(BaseModel):
+    object_type: str
+    aspect_type: str
+    object_id: int
+    owner_id: int
+    subscription_id: int
+    event_time: int
 
+async def get_strava_access_token(client: httpx.AsyncClient):
+    """Exchanges your permanent refresh token for a live 6-hour access token"""
+    url = "https://www.strava.com/oauth/token"
+    data = {
+        'client_id': STRAVA_CLIENT_ID,
+        'client_secret': STRAVA_CLIENT_SECRET,
+        'refresh_token': STRAVA_REFRESH_TOKEN,
+        'grant_type': 'refresh_token'
+    }
+    response = await client.post(url, data=data)
+    response.raise_for_status()
+    return response.json()['access_token']
 
-def refresh_strava_access_token() -> str:
-    global STRAVA_ACCESS_TOKEN, STRAVA_REFRESH_TOKEN
-
-    if not STRAVA_REFRESH_TOKEN:
-        raise RuntimeError("STRAVA_REFRESH_TOKEN is not configured")
-
-    payload = {
-        "client_id": STRAVA_CLIENT_ID,
-        "client_secret": STRAVA_CLIENT_SECRET,
-        "grant_type": "refresh_token",
-        "refresh_token": STRAVA_REFRESH_TOKEN,
+async def get_activity_details(activity_id: int, access_token: str, client: httpx.AsyncClient):
+    """Fetches the full metrics of the run/ride from Strava using the unique event ID"""
+    url = f"https://www.strava.com/api/v3/activities/{activity_id}"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = await client.get(url, headers=headers)
+    response.raise_for_status()
+    
+    data = response.json()
+    return {
+        "type": data.get("type"),
+        "name": data.get("name"),
+        "distance_km": round(data.get("distance", 0) / 1000, 2),
+        "duration_mins": round(data.get("moving_time", 0) / 60, 1),
+        "elevation_m": data.get("total_elevation_gain", 0)
     }
 
-    response = requests.post(STRAVA_TOKEN_URL, data=payload)
-    response.raise_for_status()
-    token_data = response.json()
-
-    STRAVA_ACCESS_TOKEN = token_data.get("access_token")
-    STRAVA_REFRESH_TOKEN = token_data.get("refresh_token", STRAVA_REFRESH_TOKEN)
-    print("Refreshed Strava access token")
-    return STRAVA_ACCESS_TOKEN
-
-
-def get_activity(activity_id: str) -> dict:
-    if not STRAVA_ACCESS_TOKEN:
-        raise RuntimeError("STRAVA_ACCESS_TOKEN is not configured")
-
-    url = f"{STRAVA_ACTIVITY_URL}/{activity_id}"
-    headers = {"Authorization": f"Bearer {STRAVA_ACCESS_TOKEN}"}
-    response = requests.get(url, headers=headers)
-
-    if response.status_code == 401:
-        refresh_strava_access_token()
-        headers = {"Authorization": f"Bearer {STRAVA_ACCESS_TOKEN}"}
-        response = requests.get(url, headers=headers)
-
-    response.raise_for_status()
-    return response.json()
-
-
-def generate_blog(activity: dict) -> str:
-    distance_km = round(activity.get("distance", 0) / 1000, 2)
-    moving_time_min = round(activity.get("moving_time", 0) / 60, 1)
-    elevation_m = activity.get("total_elevation_gain", 0)
-    activity_name = activity.get("name", "Strava activity")
-
-    system_prompt = (
+def generate_blog_with_gemini(metrics: dict):
+    """Uses gemini-2.5-flash to compile raw stats into a human narrative blog layout"""
+    ai_client = genai.Client()
+    
+    system_instruction = (
         "You are a professional fitness blogger writing for renuramansahu.com. "
-        "Your tone is reflective, disciplined, analytical, and human. "
-        "Write a complete, structured blog post based on the provided activity details. "
-        "Output clean HTML using only <h2>, <p>, <strong>, and <ul> tags. "
-        "Do not wrap the response in markdown code blocks."
+        "Your tone is authentic, engaging, and entirely human—avoid cliché AI phrasing. "
+        "Write a structured blog post based on the provided activity data. "
+        "Format using clean HTML (only <h2>, <p>, <strong>, and <ul> tags). No markdown wrappers."
     )
-
+    
     user_prompt = f"""
-Please write a blog post about this latest Strava activity:
-- Activity Name: {activity_name}
-- Activity Type: {activity.get('type', 'Run')}
-- Distance: {distance_km} km
-- Duration: {moving_time_min} minutes
-- Elevation Gain: {elevation_m} meters
-"""
-
-    response = client_genai.models.generate_content(
+    Write an engaging blog post about my recent workout:
+    - Activity Type: {metrics['type']}
+    - Workout Name: "{metrics['name']}"
+    - Distance Covered: {metrics['distance_km']} km
+    - Total Time: {metrics['duration_mins']} minutes
+    - Elevation Gain: {metrics['elevation_m']} meters
+    """
+    
+    response = ai_client.models.generate_content(
         model="gemini-2.5-flash",
         contents=user_prompt,
         config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
+            system_instruction=system_instruction,
             temperature=0.7,
-        ),
+        )
     )
-
     return response.text
 
-@app.get("/")
-async def root():
-    return {
-        "service": "Strava AI Blogger Webhook",
-        "status": "ready",
-        "strava_access_token": STRAVA_ACCESS_TOKEN is not None,
-        "gemini_api_key": GEMINI_API_KEY is not None,
-        "wordpress_configured": WP_APPLICATION_PASSWORD is not None,
+async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncClient):
+    """Pushes the generated text payload directly to your WordPress backend as a Draft"""
+    endpoint = f"{WP_SITE_URL}/wp-json/wp/v2/posts"
+    
+    # Bundle credentials to Base64 block required for WordPress Basic Auth header
+    credential_string = f"{WP_USERNAME}:{WP_APP_PASSWORD}"
+    base64_credentials = base64.b64encode(credential_string.encode("utf-8")).decode("utf-8")
+    
+    headers = {
+        "Authorization": f"Basic {base64_credentials}",
+        "Content-Type": "application/json"
     }
+    
+    post_data = {
+        "title": title,
+        "content": html_content,
+        "status": "draft"  # Keeps the post as a draft for review before going live
+    }
+    
+    print(f"Uploading draft post to {WP_SITE_URL}...")
+    response = await client.post(endpoint, headers=headers, json=post_data)
+    response.raise_for_status()
+    
+    result = response.json()
+    print(f"✅ Success! Blog Draft created: {result.get('link')}")
+    return result
 
+async def process_pipeline_background(activity_id: int):
+    """Master background execution link connecting data fetching to publishing"""
+    try:
+        async with httpx.AsyncClient() as client:
+            # 1. Fetch Working Strava Authorization Token
+            access_token = await get_strava_access_token(client)
+            
+            # 2. Extract Specific Workout Metrics
+            metrics = await get_activity_details(activity_id, access_token, client)
+            
+            # 3. Request Gemini Content Compilation
+            blog_html = generate_blog_with_gemini(metrics)
+            
+            # 4. Upload Content Directly onto renuramansahu.com
+            post_title = f"Recap: {metrics['name']}"
+            await post_to_wordpress(post_title, blog_html, client)
+            
+    except Exception as e:
+        print(f"❌ Error executing content pipeline: {e}")
+
+# ─── THE WEBHOOK ROUTING ───
 
 @app.get("/webhook")
-async def verify(request: Request):
+def validate_strava_subscription(request: Request):
+    """Listens for Strava's initial security subscription verification call"""
     params = request.query_params
-    mode = params.get("hub.mode")
-    token = params.get("hub.verify_token")
-    challenge = params.get("hub.challenge")
-
-    if mode == "subscribe" and token == VERIFY_TOKEN:
-        return {"hub.challenge": challenge}
-
-    raise HTTPException(status_code=403, detail="verification failed")
-
-def publish_to_wordpress(title: str, content: str) -> dict:
-    if not WP_APPLICATION_PASSWORD:
-        raise RuntimeError("WP_APPLICATION_PASSWORD is not configured")
-
-    post = {"title": title, "content": content, "status": "publish"}
-    response = requests.post(
-        WP_URL,
-        auth=HTTPBasicAuth(WP_USERNAME, WP_APPLICATION_PASSWORD),
-        json=post,
-    )
-    response.raise_for_status()
-    return response.json()
-
+    if params.get("hub.mode") == "subscribe" and params.get("hub.verify_token") == STRAVA_VERIFY_TOKEN:
+        print("FastAPI app verified successfully by Strava!")
+        return Response(content=params.get("hub.challenge"), media_type="text/plain")
+    raise HTTPException(status_code=403, detail="Forbidden: Token mismatch")
 
 @app.post("/webhook")
-async def webhook(request: Request):
-    data = await request.json()
-    object_type = data.get("object_type")
-    activity_id = data.get("object_id")
-    aspect_type = data.get("aspect_type")
-
-    print("Webhook payload:", data)
-
-    if object_type != "activity" or not activity_id:
-        return {"status": "ignored", "reason": "not an activity event"}
-
-    if aspect_type == "delete":
-        return {"status": "ignored", "reason": "activity deleted"}
-
-    try:
-        activity = get_activity(str(activity_id))
-        blog_content = generate_blog(activity)
-        publish_response = publish_to_wordpress(activity.get("name", "Strava Activity"), blog_content)
-
-        return {
-            "status": "processed",
-            "activity_id": activity_id,
-            "post_id": publish_response.get("id"),
-        }
-    except Exception as exc:
-        print("Error processing webhook:", exc)
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
-
+async def handle_strava_event(payload: StravaWebhookPayload, background_tasks: BackgroundTasks):
+    """Catches live real-time incoming workout notification markers"""
+    if payload.object_type == "activity" and payload.aspect_type == "create":
+        print(f"🚀 Live Webhook Caught! Processing Activity ID: {payload.object_id}")
+        
+        # Offload pipeline processing to background thread so we can reply 200 OK instantly
+        background_tasks.add_task(process_pipeline_background, payload.object_id)
+        
+    return JSONResponse(status_code=200, content={"status": "event processed"})
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
-
-
-
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

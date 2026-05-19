@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 
 
-def generate_blog_with_gemini(metrics: dict, training_data: dict):
+def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: str):
     """Uses gemini-2.5-flash to compile raw stats into a human narrative blog layout"""
     ai_client = genai.Client()
 
@@ -10,7 +10,7 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict):
         "You are a professional fitness blogger writing for renuramansahu.com. "
         "Your tone is authentic, engaging, and entirely human—avoid cliché AI phrasing. "
         "Write a structured blog post based on the provided activity data. "
-        "Format using clean HTML (only <h2>, <p>, <strong>, and <ul> tags). No markdown wrappers."
+        "Format using clean HTML (only <h2>, <p>, <strong>, <ul>, and <a> tags). No markdown wrappers."
     )
 
     user_prompt = f"""
@@ -88,6 +88,9 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict):
         
         End the article with a concise coaching takeaway for Raman's next phase of training,
         specifically referencing his current ACWR and what adjustments to make.
+        
+        At the very end of the blog post, include a link to the original Strava activity:
+        <p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>
         """
 
     response = ai_client.models.generate_content(

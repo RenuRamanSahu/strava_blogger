@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 
 
-def generate_blog_with_gemini(metrics: dict):
+def generate_blog_with_gemini(metrics: dict, training_data: dict):
     """Uses gemini-2.5-flash to compile raw stats into a human narrative blog layout"""
     ai_client = genai.Client()
 
@@ -38,15 +38,38 @@ def generate_blog_with_gemini(metrics: dict):
         - Max Speed: {metrics.get('max_speed')}
         - Start Date: {metrics.get('start_date_local')}
         
+        Training Load & Run Health Data:
+        - Acute Load (last 7 days): {training_data.get('acute_load_7d')}
+        - Chronic Load (weekly avg over 28 days): {training_data.get('chronic_load_weekly_avg')}
+        - Acute:Chronic Workload Ratio (ACWR): {training_data.get('acwr')}
+        - Run Health Status: {training_data.get('health_status')}
+        - Injury Risk Level: {training_data.get('injury_risk')}
+        - Runs in last 7 days: {training_data.get('runs_last_7d')}
+        - Runs in last 28 days: {training_data.get('runs_last_28d')}
+        - Distance last 7 days: {training_data.get('distance_last_7d_km')} km
+        - Distance last 28 days: {training_data.get('distance_last_28d_km')} km
+        
         Write the blog post in the following structure:
         
         1. Opening summary of the run
         2. Performance analysis from a coach's perspective
-        3. What the session likely improved physiologically
-        4. Suggested next workout based on this effort
-        5. Long-term progression insight
+        3. Acute:Chronic Workload Ratio breakdown — explain what the current ACWR 
+           means for Raman's training load management and injury risk
+        4. Run health assessment — based on the ACWR zone, volume trends, and 
+           frequency, give a clear verdict on whether Raman is undertraining, 
+           in the sweet spot, or pushing too hard
+        5. What the session likely improved physiologically
+        6. Suggested next workout based on this effort and current ACWR
+        7. Long-term progression insight incorporating workload trends
         
         The coaching analysis should feel realistic and data-driven.
+        Use the ACWR data to make specific, actionable recommendations.
+        
+        ACWR interpretation guide for reference:
+        - Below 0.8: Undertraining / detraining risk
+        - 0.8 to 1.3: Optimal training zone (sweet spot)
+        - 1.3 to 1.5: Overreaching — caution needed
+        - Above 1.5: Danger zone — high injury risk
         
         Examples of topics you may discuss:
         - aerobic development
@@ -56,12 +79,15 @@ def generate_blog_with_gemini(metrics: dict):
         - recovery
         - running economy
         - threshold development
+        - load management
+        - periodization
         
         Avoid generic motivational clichés.
         
-        Keep the length around 400–700 words.
+        Keep the length around 500–800 words.
         
-        End the article with a concise coaching takeaway for Raman's next phase of training.
+        End the article with a concise coaching takeaway for Raman's next phase of training,
+        specifically referencing his current ACWR and what adjustments to make.
         """
 
     response = ai_client.models.generate_content(

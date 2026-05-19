@@ -31,11 +31,11 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         
         Activity Data:
         - Activity Name: {metrics.get('name')}
-        - Distance: {round(metrics.get('distance', 0) / 1000, 2)} km
-        - Moving Time: {round(metrics.get('moving_time', 0) / 60)} minutes
-        - Elevation Gain: {metrics.get('total_elevation_gain', 0)} meters
-        - Average Speed: {metrics.get('average_speed')}
-        - Max Speed: {metrics.get('max_speed')}
+        - Distance: {metrics.get('distance_km')} km
+        - Moving Time: {metrics.get('duration_mins')} minutes
+        - Elevation Gain: {metrics.get('elevation_m')} meters
+        - Average Speed: {metrics.get('average_speed')} m/s
+        - Max Speed: {metrics.get('max_speed')} m/s
         - Start Date: {metrics.get('start_date_local')}
         
         Training Load & Run Health Data:

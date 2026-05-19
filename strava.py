@@ -30,7 +30,10 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
         "name": data.get("name"),
         "distance_km": round(data.get("distance", 0) / 1000, 2),
         "duration_mins": round(data.get("moving_time", 0) / 60, 1),
-        "elevation_m": data.get("total_elevation_gain", 0)
+        "elevation_m": data.get("total_elevation_gain", 0),
+        "average_speed": data.get("average_speed", 0),
+        "max_speed": data.get("max_speed", 0),
+        "start_date_local": data.get("start_date_local", ""),
     }
 
 

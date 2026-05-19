@@ -1,12 +1,71 @@
 import os
+import httpx
 from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
 from config import STRAVA_VERIFY_TOKEN
+from strava import get_strava_access_token
 from models import StravaWebhookPayload
 from pipeline import process_pipeline_background
 
 app = FastAPI()
+
+# ─── DEBUG ENDPOINT ───
+
+@app.get("/debug/strava-write")
+async def debug_strava_write():
+    """Tests whether the current Strava token has activity:write scope"""
+    async with httpx.AsyncClient() as client:
+        try:
+            access_token = await get_strava_access_token(client)
+
+            # Fetch most recent activity
+            headers = {'Authorization': f'Bearer {access_token}'}
+            resp = await client.get(
+                "https://www.strava.com/api/v3/athlete/activities",
+                headers=headers, params={"per_page": 1}
+            )
+            resp.raise_for_status()
+            activities = resp.json()
+            if not activities:
+                return {"status": "error", "message": "No activities found on this account"}
+
+            activity_id = activities[0]["id"]
+            activity_name = activities[0].get("name", "Unknown")
+            original_desc = activities[0].get("description") or ""
+
+            # Attempt to write a test description
+            test_desc = f"{original_desc}\n\n[DEBUG] Write test successful — this line was added automatically.".strip()
+            put_resp = await client.put(
+                f"https://www.strava.com/api/v3/activities/{activity_id}",
+                headers=headers,
+                json={"description": test_desc}
+            )
+
+            if put_resp.status_code == 200:
+                # Restore original description
+                await client.put(
+                    f"https://www.strava.com/api/v3/activities/{activity_id}",
+                    headers=headers,
+                    json={"description": original_desc}
+                )
+                return {
+                    "status": "success",
+                    "message": "activity:write scope is working",
+                    "activity_tested": activity_name,
+                    "activity_id": activity_id,
+                    "note": "Original description was restored after test"
+                }
+            else:
+                return {
+                    "status": "failed",
+                    "http_code": put_resp.status_code,
+                    "response": put_resp.text,
+                    "message": "Cannot write — likely missing activity:write scope. Re-authorize your Strava app.",
+                    "reauth_hint": "https://www.strava.com/oauth/authorize?client_id=YOUR_ID&response_type=code&redirect_uri=YOUR_URI&scope=activity:read_all,activity:write&approval_prompt=force"
+                }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
 # ─── THE WEBHOOK ROUTING ───
 

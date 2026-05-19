@@ -12,7 +12,9 @@ async def get_strava_access_token(client: httpx.AsyncClient):
         'refresh_token': STRAVA_REFRESH_TOKEN,
         'grant_type': 'refresh_token'
     }
+    print(f"\U0001f4e4 POST {url} — requesting access token")
     response = await client.post(url, data=data)
+    print(f"\U0001f4e5 Response {response.status_code} from {url}")
     response.raise_for_status()
     return response.json()['access_token']
 
@@ -21,7 +23,9 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
     """Fetches the full metrics of the run/ride from Strava using the unique event ID"""
     url = f"https://www.strava.com/api/v3/activities/{activity_id}"
     headers = {'Authorization': f'Bearer {access_token}'}
+    print(f"\U0001f4e4 GET {url} — fetching activity details")
     response = await client.get(url, headers=headers)
+    print(f"\U0001f4e5 Response {response.status_code} from {url}")
     response.raise_for_status()
 
     data = response.json()
@@ -59,6 +63,8 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
         "start_date_local": data.get("start_date_local", ""),
         "gear": data.get("gear", {}).get("name", "N/A") if data.get("gear") else "N/A",
         "gear_distance_km": round(data["gear"]["distance"] / 1000) if data.get("gear") and data["gear"].get("distance") else None,
+        "polyline": data.get("map", {}).get("summary_polyline", "") if data.get("map") else "",
+        "start_latlng": data.get("start_latlng", []),
     }
 
 
@@ -68,7 +74,9 @@ async def get_recent_activities(access_token: str, client: httpx.AsyncClient, da
     url = "https://www.strava.com/api/v3/athlete/activities"
     headers = {'Authorization': f'Bearer {access_token}'}
     params = {'after': after_epoch, 'per_page': 200}
+    print(f"\U0001f4e4 GET {url} — fetching recent activities (last {days} days)")
     response = await client.get(url, headers=headers, params=params)
+    print(f"\U0001f4e5 Response {response.status_code} from {url} — {len(response.json())} activities")
     response.raise_for_status()
     return response.json()
 
@@ -159,7 +167,7 @@ def _format_gear(metrics: dict) -> str:
     return gear_name
 
 
-def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str) -> str:
+def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str, weather: dict = None) -> str:
     """Builds a concise Strava activity description with run summary, health metrics, and blog link"""
     lines = [
         f"\U0001f4dd Raman's AI coach: {next_run_advice}",
@@ -170,8 +178,10 @@ def build_strava_description(metrics: dict, training_data: dict, blog_url: str, 
         f"  Runs: {training_data.get('runs_last_7d')} this week / {training_data.get('runs_last_28d')} this month",
         f"  Volume: {training_data.get('distance_last_7d_km')} km (7d) / {training_data.get('distance_last_28d_km')} km (28d)",
         f"  Gear: {_format_gear(metrics)}",
-        f"\U0001f4d6 Full blog recap: {blog_url}",
     ]
+    if weather and weather.get("summary") != "N/A":
+        lines.append(f"\U0001f326\ufe0f Weather: {weather['summary']}")
+    lines.append(f"\U0001f4d6 Full blog recap: {blog_url}")
     return "\n".join(lines)
 
 
@@ -179,7 +189,9 @@ async def update_strava_description(activity_id: int, access_token: str, descrip
     """Updates the description of a Strava activity"""
     url = f"https://www.strava.com/api/v3/activities/{activity_id}"
     headers = {'Authorization': f'Bearer {access_token}'}
+    print(f"\U0001f4e4 PUT {url} — updating activity description")
     response = await client.put(url, headers=headers, json={"description": description})
+    print(f"\U0001f4e5 Response {response.status_code} from {url}")
     response.raise_for_status()
     print(f"\u2705 Strava activity {activity_id} description updated")
     return response.json()

@@ -3,7 +3,7 @@ from google.genai import types
 from config import GEAR_LINKS
 
 
-def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: str):
+def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: str, weather: dict = None):
     """Uses gemini-2.5-flash to compile raw stats into a human narrative blog layout"""
     ai_client = genai.Client()
 
@@ -44,6 +44,14 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         Relative Effort: {metrics.get('suffer_score', 'N/A')}
         Gear: {metrics.get('gear', 'N/A')}{f" ({metrics.get('gear_distance_km')}km total)" if metrics.get('gear_distance_km') else ""}
         
+        ── WEATHER CONDITIONS ──
+        Temperature: {weather.get('temperature_c', 'N/A')}°C
+        Feels Like: {weather.get('feels_like_c', 'N/A')}°C
+        Humidity: {weather.get('humidity_pct', 'N/A')}%
+        Dew Point: {weather.get('dew_point_c', 'N/A')}°C
+        Wind Speed: {weather.get('wind_speed_kmh', 'N/A')} km/h
+        Precipitation: {weather.get('precipitation_mm', 'N/A')} mm
+        
         ── TRAINING LOAD (28-DAY WINDOW) ──
         Acute Load (7d): {training_data.get('acute_load_7d')}
         Chronic Load (weekly avg): {training_data.get('chronic_load_weekly_avg')}
@@ -57,7 +65,8 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         Write the post in these sections:
         
         1. **Run Snapshot** — Open with the key numbers: distance, pace, duration, heart rate.
-           Set the context (time of day, elevation, weather if inferable from date/location).
+           Set the context (time of day, elevation, weather conditions).
+           Mention the actual temperature, humidity, and how it felt.
            Keep it punchy — 2-3 sentences max.
         
         2. **Pace & Effort Breakdown** — Analyze the avg vs max pace gap.
@@ -65,6 +74,8 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
            If heart rate data is available, discuss the effort-to-pace ratio.
            Compute and reference pace per km in min:sec format.
            If cadence is available, assess running form efficiency (optimal ~170-185 spm).
+           Factor in weather impact — heat/humidity slow pace by ~2-5% per 5°C above 20°C.
+           If dew point > 16°C, note the impact on breathing and evaporative cooling.
         
         3. **Workload Intelligence** — Dissect the ACWR number.
            Compare acute vs chronic load with actual values.

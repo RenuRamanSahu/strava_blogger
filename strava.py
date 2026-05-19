@@ -120,15 +120,15 @@ def compute_acwr_and_health(activities: list) -> dict:
     }
 
 
-def build_strava_comment(metrics: dict, training_data: dict, blog_url: str) -> str:
-    """Builds a concise Strava activity comment with run summary, health metrics, and blog link"""
+def build_strava_description(metrics: dict, training_data: dict, blog_url: str) -> str:
+    """Builds a concise Strava activity description with run summary, health metrics, and blog link"""
     lines = [
         f"\U0001f4dd Auto-generated run recap from Raman's Strava Project:",
         f"",
         f"\U0001f3c3 {metrics.get('distance_km')} km in {metrics.get('duration_mins')} min | {metrics.get('elevation_m')}m elevation",
         f"",
         f"\U0001f4ca Training Load & Health:",
-        f"  ACWR: {training_data.get('acwr', 'N/A')} — {training_data.get('health_status', 'N/A')}",
+        f"  ACWR: {training_data.get('acwr', 'N/A')} \u2014 {training_data.get('health_status', 'N/A')}",
         f"  Injury Risk: {training_data.get('injury_risk', 'N/A')}",
         f"  7-day load: {training_data.get('acute_load_7d')} | 28-day avg: {training_data.get('chronic_load_weekly_avg')}",
         f"  Runs: {training_data.get('runs_last_7d')} this week / {training_data.get('runs_last_28d')} this month",
@@ -139,11 +139,11 @@ def build_strava_comment(metrics: dict, training_data: dict, blog_url: str) -> s
     return "\n".join(lines)
 
 
-async def post_strava_comment(activity_id: int, access_token: str, text: str, client: httpx.AsyncClient):
-    """Posts a comment on a Strava activity"""
-    url = f"https://www.strava.com/api/v3/activities/{activity_id}/comments"
+async def update_strava_description(activity_id: int, access_token: str, description: str, client: httpx.AsyncClient):
+    """Updates the description of a Strava activity"""
+    url = f"https://www.strava.com/api/v3/activities/{activity_id}"
     headers = {'Authorization': f'Bearer {access_token}'}
-    response = await client.post(url, headers=headers, json={"text": text})
+    response = await client.put(url, headers=headers, json={"description": description})
     response.raise_for_status()
-    print(f"\u2705 Strava comment posted on activity {activity_id}")
+    print(f"\u2705 Strava activity {activity_id} description updated")
     return response.json()

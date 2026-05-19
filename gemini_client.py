@@ -102,3 +102,33 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         )
     )
     return response.text
+
+
+def generate_blog_title(metrics: dict) -> str:
+    """Uses Gemini to generate a creative, SEO-friendly blog post title"""
+    ai_client = genai.Client()
+
+    prompt = f"""
+        Generate a single blog post title for a running activity recap on renuramansahu.com.
+
+        Activity details:
+        - Name: {metrics.get('name')}
+        - Distance: {metrics.get('distance_km')} km
+        - Duration: {metrics.get('duration_mins')} minutes
+        - Elevation: {metrics.get('elevation_m')} meters
+
+        Rules:
+        - Return ONLY the title text, nothing else
+        - No quotes, no explanation, no punctuation wrapping
+        - Make it engaging, specific to the run, and SEO-friendly
+        - Reference the athlete "Raman" by name
+        - Keep it under 80 characters
+        - Avoid generic phrases like "A Great Run" or "Another Day"
+        """
+
+    response = ai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.9),
+    )
+    return response.text.strip()

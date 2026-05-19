@@ -30,13 +30,13 @@ def generate_blog_with_gemini(metrics: dict):
         Always refer to the athlete as "Raman".
         
         Activity Data:
-        - Activity Name: {activity.get('name')}
-        - Distance: {round(activity.get('distance', 0) / 1000, 2)} km
-        - Moving Time: {round(activity.get('moving_time', 0) / 60)} minutes
-        - Elevation Gain: {activity.get('total_elevation_gain', 0)} meters
-        - Average Speed: {activity.get('average_speed')}
-        - Max Speed: {activity.get('max_speed')}
-        - Start Date: {activity.get('start_date_local')}
+        - Activity Name: {metrics.get('name')}
+        - Distance: {round(metrics.get('distance', 0) / 1000, 2)} km
+        - Moving Time: {round(metrics.get('moving_time', 0) / 60)} minutes
+        - Elevation Gain: {metrics.get('total_elevation_gain', 0)} meters
+        - Average Speed: {metrics.get('average_speed')}
+        - Max Speed: {metrics.get('max_speed')}
+        - Start Date: {metrics.get('start_date_local')}
         
         Write the blog post in the following structure:
         

@@ -3,7 +3,7 @@ from strava import (
     get_strava_access_token, get_activity_details, get_recent_activities,
     compute_acwr_and_health, build_strava_description, update_strava_description,
 )
-from gemini_client import generate_blog_with_gemini, generate_blog_title
+from gemini_client import generate_blog_with_gemini, generate_blog_title, generate_next_run_advice
 from wordpress import post_to_wordpress
 
 
@@ -39,7 +39,9 @@ async def process_pipeline_background(activity_id: int):
             print(f"\u2705 Step 6: Blog published — {blog_url}")
 
             # 7. Update Strava activity description with summary + health metrics + blog link
-            description = build_strava_description(metrics, training_data, blog_url)
+            next_run_advice = generate_next_run_advice(metrics, training_data)
+            print(f"\u2705 Step 7a: Next run advice generated — {next_run_advice}")
+            description = build_strava_description(metrics, training_data, blog_url, next_run_advice)
             await update_strava_description(activity_id, access_token, description, client)
             print(f"\u2705 Step 7: Strava description updated")
 

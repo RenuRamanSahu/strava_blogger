@@ -25,15 +25,40 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
     response.raise_for_status()
 
     data = response.json()
+
+    # Compute derived metrics
+    distance_km = round(data.get("distance", 0) / 1000, 2)
+    moving_time_s = data.get("moving_time", 0)
+    elapsed_time_s = data.get("elapsed_time", 0)
+    duration_mins = round(moving_time_s / 60, 1)
+    avg_speed = data.get("average_speed", 0)
+    avg_pace_sec_per_km = round(1000 / avg_speed) if avg_speed > 0 else 0
+    avg_pace = f"{avg_pace_sec_per_km // 60}:{avg_pace_sec_per_km % 60:02d}" if avg_speed > 0 else "N/A"
+    max_speed = data.get("max_speed", 0)
+    max_pace_sec_per_km = round(1000 / max_speed) if max_speed > 0 else 0
+    max_pace = f"{max_pace_sec_per_km // 60}:{max_pace_sec_per_km % 60:02d}" if max_speed > 0 else "N/A"
+    stopped_time_s = elapsed_time_s - moving_time_s
+
     return {
         "type": data.get("type"),
         "name": data.get("name"),
-        "distance_km": round(data.get("distance", 0) / 1000, 2),
-        "duration_mins": round(data.get("moving_time", 0) / 60, 1),
+        "distance_km": distance_km,
+        "duration_mins": duration_mins,
+        "elapsed_mins": round(elapsed_time_s / 60, 1),
+        "stopped_mins": round(stopped_time_s / 60, 1),
         "elevation_m": data.get("total_elevation_gain", 0),
-        "average_speed": data.get("average_speed", 0),
-        "max_speed": data.get("max_speed", 0),
+        "average_speed": avg_speed,
+        "average_pace": avg_pace,
+        "max_speed": max_speed,
+        "max_pace": max_pace,
+        "average_heartrate": data.get("average_heartrate"),
+        "max_heartrate": data.get("max_heartrate"),
+        "suffer_score": data.get("suffer_score"),
+        "calories": data.get("calories"),
+        "average_cadence": data.get("average_cadence"),
         "start_date_local": data.get("start_date_local", ""),
+        "gear": data.get("gear", {}).get("name", "N/A") if data.get("gear") else "N/A",
+        "gear_distance_km": round(data["gear"]["distance"] / 1000) if data.get("gear") and data["gear"].get("distance") else None,
     }
 
 
@@ -123,20 +148,28 @@ def compute_acwr_and_health(activities: list) -> dict:
     }
 
 
-def build_strava_description(metrics: dict, training_data: dict, blog_url: str) -> str:
+def _format_gear(metrics: dict) -> str:
+    """Formats gear name with total distance"""
+    gear_name = metrics.get('gear', 'N/A')
+    if gear_name == 'N/A':
+        return gear_name
+    distance = metrics.get('gear_distance_km')
+    if distance:
+        return f"{gear_name} ({distance}km)"
+    return gear_name
+
+
+def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str) -> str:
     """Builds a concise Strava activity description with run summary, health metrics, and blog link"""
     lines = [
-        f"\U0001f4dd Auto-generated run recap from Raman's Strava Project:",
-        f"",
-        f"\U0001f3c3 {metrics.get('distance_km')} km in {metrics.get('duration_mins')} min | {metrics.get('elevation_m')}m elevation",
-        f"",
-        f"\U0001f4ca Training Load & Health:",
+        f"\U0001f4dd Raman's AI coach: {next_run_advice}",
+        f"\U0001f4ca Today's Training Load & Health:",
         f"  ACWR: {training_data.get('acwr', 'N/A')} \u2014 {training_data.get('health_status', 'N/A')}",
         f"  Injury Risk: {training_data.get('injury_risk', 'N/A')}",
         f"  7-day load: {training_data.get('acute_load_7d')} | 28-day avg: {training_data.get('chronic_load_weekly_avg')}",
         f"  Runs: {training_data.get('runs_last_7d')} this week / {training_data.get('runs_last_28d')} this month",
         f"  Volume: {training_data.get('distance_last_7d_km')} km (7d) / {training_data.get('distance_last_28d_km')} km (28d)",
-        f"",
+        f"  Gear: {_format_gear(metrics)}",
         f"\U0001f4d6 Full blog recap: {blog_url}",
     ]
     return "\n".join(lines)

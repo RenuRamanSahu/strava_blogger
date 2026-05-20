@@ -46,7 +46,7 @@ def _overlay_metrics(map_image: Image.Image, metrics: dict, weather: dict) -> Im
         font_weather = ImageFont.load_default()
 
     # ── Bottom-left panel: run metrics ──
-    panel_w, panel_h = 340, 120
+    panel_w, panel_h = 480, 120
     panel_x, panel_y = 20, img.height - panel_h - 20
 
     draw.rounded_rectangle(
@@ -60,7 +60,9 @@ def _overlay_metrics(map_image: Image.Image, metrics: dict, weather: dict) -> Im
     pace = f"{metrics.get('average_pace', 'N/A')} /km"
     duration = f"{metrics.get('duration_mins', 0)} min"
 
-    col_w = panel_w // 3
+    padding = 20
+    usable_w = panel_w - 2 * padding
+    col_w = usable_w // 3
     stats = [
         ("DISTANCE", distance),
         ("PACE", pace),
@@ -68,7 +70,7 @@ def _overlay_metrics(map_image: Image.Image, metrics: dict, weather: dict) -> Im
     ]
 
     for i, (label, value) in enumerate(stats):
-        cx = panel_x + col_w * i + col_w // 2
+        cx = panel_x + padding + col_w * i + col_w // 2
 
         bbox = draw.textbbox((0, 0), value, font=font_large)
         tw = bbox[2] - bbox[0]

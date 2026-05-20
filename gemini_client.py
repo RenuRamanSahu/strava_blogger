@@ -131,7 +131,6 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         
         At the very end of the blog post, include a link to the original Strava activity:
         <p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>
-        {_gear_blog_instruction(metrics)}
         """
 
     response = ai_client.models.generate_content(
@@ -144,6 +143,9 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
     )
     blog_html = response.text
 
+    # Append gear affiliate block with disclosure
+    blog_html += _build_gear_html(metrics)
+
     # Append Chart.js charts if stream data is available
     if elevation_profile and elevation_profile.get('distance_km'):
         blog_html += _build_elevation_chart_html(elevation_profile)
@@ -153,8 +155,8 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
     return blog_html
 
 
-def _gear_blog_instruction(metrics: dict) -> str:
-    """Generates the gear affiliate link instruction for the blog prompt"""
+def _build_gear_html(metrics: dict) -> str:
+    """Builds a gear affiliate link block with transparency disclosure"""
     gear_name = metrics.get('gear', 'N/A')
     if gear_name == 'N/A':
         return ""
@@ -162,13 +164,14 @@ def _gear_blog_instruction(metrics: dict) -> str:
     if not link:
         return ""
     distance = metrics.get('gear_distance_km')
-    distance_text = f" ({distance}km)" if distance else ""
+    distance_text = f" ({distance} km on this pair)" if distance else ""
     return (
-        f"Also include a gear mention near the end of the blog post before the Strava link. "
-        f"Mention that Raman ran this session in the {gear_name}{distance_text}. "
-        f"Make the gear name a clickable link: "
-        f'<a href="{link}" target="_blank" rel="nofollow">{gear_name}</a>. '
-        f"Keep the mention natural and brief — one sentence."
+        f'<p><strong>Gear Used:</strong> '
+        f'<a href="{link}" target="_blank" rel="nofollow noopener">{gear_name}</a>'
+        f'{distance_text}</p>\n'
+        f'<p style="font-size:0.75em;color:#888;">'
+        f'Transparency: As an Amazon Associate, I earn a small commission if you purchase '
+        f'through the link above — at no extra cost to you.</p>\n'
     )
 
 

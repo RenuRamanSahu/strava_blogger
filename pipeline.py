@@ -1,7 +1,8 @@
 import httpx
 from strava import (
-    get_strava_access_token, get_activity_details, get_recent_activities,
-    compute_acwr_and_health, build_strava_description, update_strava_description,
+    get_strava_access_token, get_activity_details, get_activity_streams,
+    get_recent_activities, compute_acwr_and_health, build_strava_description,
+    update_strava_description,
 )
 from gemini_client import generate_blog_with_gemini, generate_blog_title, generate_next_run_advice
 from wordpress import post_to_wordpress, upload_media_to_wordpress
@@ -27,8 +28,15 @@ async def process_pipeline_background(activity_id: int):
             training_data = compute_acwr_and_health(recent_activities)
             print(f"\u2705 Step 3: ACWR computed \u2014 {training_data.get('acwr')} ({training_data.get('health_status')})")
 
-            # 4. Build Strava activity URL
+            # 4a. Build Strava activity URL
             strava_url = f"https://www.strava.com/activities/{activity_id}"
+
+            # 4b. Fetch elevation profile streams (distance + altitude)
+            elevation_profile = await get_activity_streams(activity_id, access_token, client)
+            if elevation_profile:
+                print(f"\u2705 Step 4b: Elevation profile fetched \u2014 {len(elevation_profile.get('distance_km', []))} points")
+            else:
+                print(f"\u26a0\ufe0f Step 4b: No stream data \u2014 skipping elevation profile")
 
             # 5. Fetch weather conditions at activity location and time
             weather = {}
@@ -55,7 +63,7 @@ async def process_pipeline_background(activity_id: int):
             # 7. Generate AI blog title and content (includes weather + Strava link in blog)
             post_title = generate_blog_title(metrics)
             print(f"\u2705 Step 7a: AI title generated \u2014 {post_title}")
-            blog_html = generate_blog_with_gemini(metrics, training_data, strava_url, weather)
+            blog_html = generate_blog_with_gemini(metrics, training_data, strava_url, weather, elevation_profile)
             print(f"\u2705 Step 7b: Blog content generated ({len(blog_html)} chars)")
 
             # 8. Upload Content Directly onto renuramansahu.com (with featured image)

@@ -68,6 +68,78 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
     }
 
 
+async def get_activity_streams(activity_id: int, access_token: str, client: httpx.AsyncClient) -> dict:
+    """Fetches distance, altitude, and velocity streams for elevation and pace charting"""
+    url = f"https://www.strava.com/api/v3/activities/{activity_id}/streams"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'keys': 'distance,altitude,velocity_smooth', 'key_type': 'distance'}
+    print(f"\U0001f4e4 GET {url} — fetching activity streams")
+    response = await client.get(url, headers=headers, params=params)
+    print(f"\U0001f4e5 Response {response.status_code} from {url}")
+
+    if response.status_code != 200:
+        print(f"\u26a0\ufe0f Streams not available (HTTP {response.status_code})")
+        return {}
+
+    streams = {s['type']: s['data'] for s in response.json()}
+    distance = streams.get('distance', [])
+    altitude = streams.get('altitude', [])
+    velocity = streams.get('velocity_smooth', [])
+
+    if not distance or not altitude:
+        return {}
+
+    return _downsample_streams(distance, altitude, velocity)
+
+
+def _speed_to_pace(speed_ms: float) -> float:
+    """Converts speed (m/s) to pace (minutes per km). Caps at 15 min/km for near-zero speeds."""
+    if speed_ms <= 0.1:
+        return 15.0
+    pace = (1000 / speed_ms) / 60
+    return min(round(pace, 2), 15.0)
+
+
+def _downsample_streams(distance: list, altitude: list, velocity: list = None, max_points: int = 80) -> dict:
+    """Downsamples stream arrays to max_points for lightweight Chart.js embedding"""
+    n = len(distance)
+    has_velocity = velocity and len(velocity) == n
+
+    if n <= max_points:
+        result = {
+            'distance_km': [round(d / 1000, 2) for d in distance],
+            'altitude_m': [round(a, 1) for a in altitude],
+        }
+        if has_velocity:
+            result['pace_min_per_km'] = [_speed_to_pace(v) for v in velocity]
+        return result
+
+    step = n / max_points
+    sampled_dist = []
+    sampled_alt = []
+    sampled_pace = []
+    for i in range(max_points):
+        idx = int(i * step)
+        sampled_dist.append(round(distance[idx] / 1000, 2))
+        sampled_alt.append(round(altitude[idx], 1))
+        if has_velocity:
+            sampled_pace.append(_speed_to_pace(velocity[idx]))
+
+    # Always include the last point
+    sampled_dist[-1] = round(distance[-1] / 1000, 2)
+    sampled_alt[-1] = round(altitude[-1], 1)
+    if has_velocity:
+        sampled_pace[-1] = _speed_to_pace(velocity[-1])
+
+    result = {
+        'distance_km': sampled_dist,
+        'altitude_m': sampled_alt,
+    }
+    if has_velocity:
+        result['pace_min_per_km'] = sampled_pace
+    return result
+
+
 async def get_recent_activities(access_token: str, client: httpx.AsyncClient, days: int = 28):
     """Fetches all activities from the last N days for workload calculations"""
     after_epoch = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())

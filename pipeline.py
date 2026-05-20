@@ -7,6 +7,7 @@ from gemini_client import generate_blog_with_gemini, generate_blog_title, genera
 from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
+from config import WP_SITE_URL
 
 
 async def process_pipeline_background(activity_id: int):
@@ -59,7 +60,7 @@ async def process_pipeline_background(activity_id: int):
 
             # 8. Upload Content Directly onto renuramansahu.com (with featured image)
             wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
-            blog_url = wp_result.get("link", "https://renuramansahu.com")
+            blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             print(f"\u2705 Step 8: Blog published \u2014 {blog_url}")
 
             # 9. Update Strava activity description with summary + health metrics + weather + blog link

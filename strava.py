@@ -129,19 +129,19 @@ def compute_acwr_and_health(activities: list) -> dict:
     # Determine run health status based on ACWR
     if acwr is None:
         health_status = "Insufficient Data"
-        injury_risk = "Unknown"
+        injury_risk = "\u26AA Unknown"
     elif acwr < 0.8:
         health_status = "Undertraining"
-        injury_risk = "Low (but detraining risk)"
+        injury_risk = "\U0001F535 Low (but detraining risk)"
     elif acwr <= 1.3:
         health_status = "Optimal Training Zone"
-        injury_risk = "Low"
+        injury_risk = "\U0001F7E2 Low"
     elif acwr <= 1.5:
         health_status = "Overreaching"
-        injury_risk = "Moderate"
+        injury_risk = "\U0001F7E0 Moderate"
     else:
         health_status = "Danger Zone"
-        injury_risk = "High"
+        injury_risk = "\U0001F534 High"
 
     return {
         "acute_load_7d": round(acute_load, 1),
@@ -170,6 +170,7 @@ def _format_gear(metrics: dict) -> str:
 def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str, weather: dict = None) -> str:
     """Builds a concise Strava activity description with run summary, health metrics, and blog link"""
     lines = [
+        f"\U0001f4d6 Details of this run: {blog_url}",
         f"\U0001f4dd Raman's AI coach: {next_run_advice}",
         f"\U0001f4ca Today's Training Load & Health:",
         f"  ACWR: {training_data.get('acwr', 'N/A')} \u2014 {training_data.get('health_status', 'N/A')}",
@@ -181,7 +182,6 @@ def build_strava_description(metrics: dict, training_data: dict, blog_url: str, 
     ]
     if weather and weather.get("summary") != "N/A":
         lines.append(f"\U0001f326\ufe0f Weather: {weather['summary']}")
-    lines.append(f"\U0001f4d6 Full blog recap: {blog_url}")
     return "\n".join(lines)
 
 

@@ -4,7 +4,7 @@ from strava import (
     get_recent_activities, compute_acwr_and_health, build_strava_description,
     update_strava_description,
 )
-from gemini_client import generate_blog_with_gemini, generate_blog_title, generate_next_run_advice
+from ai_client import generate_blog_with_ai, generate_blog_title, generate_next_run_advice
 from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
@@ -61,9 +61,9 @@ async def process_pipeline_background(activity_id: int):
                 print(f"\u26a0\ufe0f Step 6: No polyline data \u2014 skipping map image")
 
             # 7. Generate AI blog title and content (includes weather + Strava link in blog)
-            post_title = generate_blog_title(metrics)
+            post_title = await generate_blog_title(metrics)
             print(f"\u2705 Step 7a: AI title generated \u2014 {post_title}")
-            blog_html = generate_blog_with_gemini(metrics, training_data, strava_url, weather, elevation_profile)
+            blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
             print(f"\u2705 Step 7b: Blog content generated ({len(blog_html)} chars)")
 
             # 8. Upload Content Directly onto renuramansahu.com (with featured image)
@@ -72,7 +72,7 @@ async def process_pipeline_background(activity_id: int):
             print(f"\u2705 Step 8: Blog published \u2014 {blog_url}")
 
             # 9. Update Strava activity description with summary + health metrics + weather + blog link
-            next_run_advice = generate_next_run_advice(metrics, training_data)
+            next_run_advice = await generate_next_run_advice(metrics, training_data)
             print(f"\u2705 Step 9a: Next run advice generated \u2014 {next_run_advice}")
             description = build_strava_description(metrics, training_data, blog_url, next_run_advice, weather)
             await update_strava_description(activity_id, access_token, description, client)
@@ -126,16 +126,16 @@ async def process_pipeline_streaming(activity_id: int):
             else:
                 yield "⚠️ Step 6: No polyline data — skipping map image"
 
-            post_title = generate_blog_title(metrics)
+            post_title = await generate_blog_title(metrics)
             yield f"✅ Step 7a: AI title generated — {post_title}"
-            blog_html = generate_blog_with_gemini(metrics, training_data, strava_url, weather, elevation_profile)
+            blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
             yield f"✅ Step 7b: Blog content generated ({len(blog_html)} chars)"
 
             wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             yield f"✅ Step 8: Blog published — {blog_url}"
 
-            next_run_advice = generate_next_run_advice(metrics, training_data)
+            next_run_advice = await generate_next_run_advice(metrics, training_data)
             yield f"✅ Step 9a: Next run advice generated — {next_run_advice}"
             description = build_strava_description(metrics, training_data, blog_url, next_run_advice, weather)
             await update_strava_description(activity_id, access_token, description, client)

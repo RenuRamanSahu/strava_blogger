@@ -1,11 +1,33 @@
-from google import genai
-from google.genai import types
-from config import GEAR_LINKS
+import httpx
+from config import GEAR_LINKS, OPENROUTER_API_KEY
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct"
 
 
-def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: str, weather: dict = None, elevation_profile: dict = None):
-    """Uses gemini-2.5-flash to compile raw stats into a human narrative blog layout"""
-    ai_client = genai.Client()
+async def _openrouter_chat(system: str, user: str, temperature: float = 0.7) -> str:
+    """Sends a chat completion request to OpenRouter targeting Llama 3 on Groq"""
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": OPENROUTER_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": temperature,
+        "provider": {"order": ["Groq"]},
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+
+async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: str, weather: dict = None, elevation_profile: dict = None):
+    """Uses Llama 3 via OpenRouter/Groq to compile raw stats into a human narrative blog layout"""
 
     # Build route segment data for the narrative section
     route_segments_text = _build_route_segments(elevation_profile) if elevation_profile else ""
@@ -133,15 +155,7 @@ def generate_blog_with_gemini(metrics: dict, training_data: dict, strava_url: st
         <p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>
         """
 
-    response = ai_client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.7,
-        )
-    )
-    blog_html = response.text
+    blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7)
 
     # Append gear affiliate block with disclosure
     blog_html += _build_gear_html(metrics)
@@ -383,9 +397,8 @@ else {{ window.addEventListener('chartjs-ready', renderPaceChart); }}
 """
 
 
-def generate_blog_title(metrics: dict) -> str:
-    """Uses Gemini to generate a creative, SEO-friendly blog post title"""
-    ai_client = genai.Client()
+async def generate_blog_title(metrics: dict) -> str:
+    """Uses Llama 3 via OpenRouter/Groq to generate a creative, SEO-friendly blog post title"""
 
     prompt = f"""
         Generate a single blog post title for a running activity recap on renuramansahu.com.
@@ -405,17 +418,16 @@ def generate_blog_title(metrics: dict) -> str:
         - Avoid generic phrases like "A Great Run" or "Another Day"
         """
 
-    response = ai_client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.9),
+    result = await _openrouter_chat(
+        "You generate blog post titles. Return ONLY the title text, nothing else.",
+        prompt,
+        temperature=0.9,
     )
-    return response.text.strip()
+    return result.strip()
 
 
-def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
-    """Uses Gemini to generate a one-liner next run recommendation"""
-    ai_client = genai.Client()
+async def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
+    """Uses Llama 3 via OpenRouter/Groq to generate a one-liner next run recommendation"""
 
     prompt = f"""
         You are an experienced running coach. Based on the athlete's latest run and
@@ -442,9 +454,9 @@ def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
         - Sound like a real coach, not an AI
         """
 
-    response = ai_client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.8),
+    result = await _openrouter_chat(
+        "You are an experienced running coach. Return ONLY one sentence, no quotes, no explanation.",
+        prompt,
+        temperature=0.8,
     )
-    return response.text.strip()
+    return result.strip()

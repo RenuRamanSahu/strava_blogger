@@ -222,12 +222,13 @@ def _build_elevation_chart_html(elevation_profile: dict) -> str:
 <canvas id="elevationChart" width="720" height="300"></canvas>
 </div>
 <script>
-if (!window.Chart) {{
+if (!window.Chart && !document.getElementById('chartjs-loader')) {{
   var s = document.createElement('script');
+  s.id = 'chartjs-loader';
   s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
   s.onload = function() {{ window.dispatchEvent(new Event('chartjs-ready')); }};
   document.head.appendChild(s);
-}} else {{ window.dispatchEvent(new Event('chartjs-ready')); }}
+}} else if (window.Chart) {{ window.dispatchEvent(new Event('chartjs-ready')); }}
 </script>
 <script>
 function renderElevationChart() {{
@@ -378,6 +379,15 @@ def _build_acwr_gauge_html(acwr_value: float) -> str:
 <div style="max-width:400px;margin:24px auto;text-align:center;">
 <canvas id="acwrGauge" width="400" height="260"></canvas>
 </div>
+<script>
+if (!window.Chart && !document.getElementById('chartjs-loader')) {{
+  var s = document.createElement('script');
+  s.id = 'chartjs-loader';
+  s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+  s.onload = function() {{ window.dispatchEvent(new Event('chartjs-ready')); }};
+  document.head.appendChild(s);
+}} else if (window.Chart) {{ window.dispatchEvent(new Event('chartjs-ready')); }}
+</script>
 <script>
 function renderAcwrGauge() {{
   var acwrValue = {clamped};

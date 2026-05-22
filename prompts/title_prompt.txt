@@ -1,0 +1,15 @@
+Generate one blog post title for a running activity on renuramansahu.com.
+
+Activity: {name} | {distance_km} km | {duration_mins} min | {elevation_m}m elevation
+
+RULES:
+- Return ONLY the title text. No quotes. No explanation.
+- Include the name "Raman"
+- Under 80 characters
+- Be specific to this run's data (distance, terrain, conditions)
+- Avoid generic phrases: "A Great Run", "Another Day", "Hitting the Pavement"
+
+GOOD: "Raman's 10K Heat Test: 5:28/km Through 34°C Bangalore"
+GOOD: "8.2 km at Threshold: Raman's ACWR Hits the Sweet Spot"
+BAD: "Raman's Amazing Running Journey Continues"
+BAD: "Another Great Day on the Road for Raman"

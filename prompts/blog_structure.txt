@@ -1,0 +1,67 @@
+Write a 600-900 word blog post analyzing Raman's run. Use the exact data below. Follow the section order strictly.
+
+<session>
+{session_data}
+</session>
+
+<weather>
+{weather_data}
+</weather>
+
+<training_load>
+{training_load_data}
+</training_load>
+
+<route_segments>
+{route_segments}
+</route_segments>
+
+SECTIONS (use these exact <h2> headings):
+
+<h2>Run Snapshot</h2>
+2-3 sentences only. State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity). No fluff.
+
+<h2>Pace & Effort Breakdown</h2>
+- Compare avg vs max pace — what does the gap reveal about pacing strategy?
+- If heart rate exists: compute effort-to-pace ratio. Is Raman working harder than the pace suggests?
+- If cadence exists: assess form efficiency (optimal range 170-185 spm)
+- If temp > 20°C: quantify expected pace slowdown (~2-5% per 5°C above 20°C)
+- If dew point > 16°C: note impact on evaporative cooling and breathing
+- Always use min:sec/km format for pace values
+
+<h2>Route Narrative</h2>
+ONLY include this section if <route_segments> contains data. Otherwise skip entirely.
+- Narrate the run km-by-km using the segment data
+- Describe how pace responded to elevation changes
+- Identify fastest/slowest segments and explain why (terrain, fatigue, strategy)
+- Note positive/negative splits and what they indicate
+- Read like race commentary — specific, vivid, grounded in data
+
+<h2>Workload Intelligence</h2>
+- State the ACWR value and classify it:
+  * Below 0.8 = undertraining / detraining risk
+  * 0.8–1.3 = optimal training zone
+  * 1.3–1.5 = overreaching (caution)
+  * Above 1.5 = danger zone (high injury risk)
+- Compare acute load (7d) vs chronic load with actual numbers
+- Reference weekly run count and distance trends
+- Show your math: "At an ACWR of X.XX, the acute load of Y sits [above/within/below] the chronic baseline of Z..."
+
+<h2>Physiological Impact</h2>
+- Based on pace + duration + HR: which energy system was targeted?
+- Name specific adaptations this session drives (mitochondrial density, capillarization, lactate clearance, fat oxidation, cardiac output)
+- Justify each claim with actual numbers from the data
+- Keep this section to 3-4 sentences
+
+<h2>Recovery & Next Session</h2>
+- Prescribe recovery duration based on today's load and current ACWR
+- Prescribe a specific next workout: type, distance, target pace range
+- Explain the reasoning using load data
+
+<h2>Training Trajectory</h2>
+- Assess the 28-day volume trend: is progression safe?
+- Recommend the next 1-2 weeks of training direction
+- End with one concrete coaching directive citing specific numbers (ACWR target, weekly km goal, pace target)
+
+After all sections, end with:
+<p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>

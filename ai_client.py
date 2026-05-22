@@ -1,8 +1,16 @@
+import os
 import httpx
 from config import GEAR_LINKS, OPENROUTER_API_KEY
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct"
+PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+
+
+def _load_prompt(filename: str) -> str:
+    """Loads a prompt template from the prompts/ directory"""
+    with open(os.path.join(PROMPTS_DIR, filename), "r", encoding="utf-8") as f:
+        return f.read()
 
 
 async def _openrouter_chat(system: str, user: str, temperature: float = 0.7) -> str:
@@ -30,143 +38,95 @@ async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: 
     """Uses Llama 3 via OpenRouter/Groq to compile raw stats into a human narrative blog layout"""
 
     # Build route segment data for the narrative section
-    route_segments_text = _build_route_segments(elevation_profile) if elevation_profile else ""
+    route_segments_text = _build_route_segments(elevation_profile) if elevation_profile else "No segment data available."
 
-    system_instruction = (
-        "You are a professional fitness blogger writing for renuramansahu.com. "
-        "Your tone is authentic, engaging, and entirely human—avoid cliché AI phrasing. "
-        "Write a structured blog post based on the provided activity data. "
-        "Format using clean HTML (only <h2>, <p>, <strong>, <ul>, and <a> tags). No markdown wrappers."
+    system_instruction = _load_prompt("blog_system.txt")
+
+    # Build data blocks for template substitution
+    session_data = (
+        f"Activity: {metrics.get('name')}\n"
+        f"Date: {metrics.get('start_date_local')}\n"
+        f"Distance: {metrics.get('distance_km')} km\n"
+        f"Moving Time: {metrics.get('duration_mins')} min\n"
+        f"Elapsed Time: {metrics.get('elapsed_mins')} min\n"
+        f"Stopped Time: {metrics.get('stopped_mins')} min\n"
+        f"Elevation Gain: {metrics.get('elevation_m')} m\n"
+        f"Avg Pace: {metrics.get('average_pace')} /km\n"
+        f"Max Pace: {metrics.get('max_pace')} /km\n"
+        f"Avg Heart Rate: {metrics.get('average_heartrate', 'N/A')} bpm\n"
+        f"Max Heart Rate: {metrics.get('max_heartrate', 'N/A')} bpm\n"
+        f"Avg Cadence: {metrics.get('average_cadence', 'N/A')} spm\n"
+        f"Calories: {metrics.get('calories', 'N/A')} kcal\n"
+        f"Relative Effort: {metrics.get('suffer_score', 'N/A')}\n"
+        f"Gear: {metrics.get('gear', 'N/A')}"
+    )
+    gear_km = metrics.get('gear_distance_km')
+    if gear_km:
+        session_data += f" ({gear_km}km total)"
+
+    weather_data = (
+        f"Temperature: {weather.get('temperature_c', 'N/A')}°C\n"
+        f"Feels Like: {weather.get('feels_like_c', 'N/A')}°C\n"
+        f"Humidity: {weather.get('humidity_pct', 'N/A')}%\n"
+        f"Dew Point: {weather.get('dew_point_c', 'N/A')}°C\n"
+        f"Wind Speed: {weather.get('wind_speed_kmh', 'N/A')} km/h\n"
+        f"Precipitation: {weather.get('precipitation_mm', 'N/A')} mm"
+    ) if weather else "No weather data available."
+
+    training_load_data = (
+        f"Acute Load (7d): {training_data.get('acute_load_7d')}\n"
+        f"Chronic Load (weekly avg): {training_data.get('chronic_load_weekly_avg')}\n"
+        f"ACWR: {training_data.get('acwr')}\n"
+        f"Health Status: {training_data.get('health_status')}\n"
+        f"Injury Risk: {training_data.get('injury_risk')}\n"
+        f"Runs (7d / 28d): {training_data.get('runs_last_7d')} / {training_data.get('runs_last_28d')}\n"
+        f"Distance (7d / 28d): {training_data.get('distance_last_7d_km')} km / {training_data.get('distance_last_28d_km')} km"
     )
 
-    user_prompt = f"""
-        You are an experienced endurance running coach, exercise physiologist, and sports journalist.
-        
-        Write a data-centric blog post analyzing Raman's running activity using THIRD PERSON narration only.
-        
-        The tone should feel:
-        - analytical and numbers-driven
-        - scientifically grounded
-        - reflective with real coaching insight
-        - professional but human
-        
-        Do NOT write in first person. Do NOT say "I". Always refer to the athlete as "Raman".
-        
-        ── SESSION DATA ──
-        Activity: {metrics.get('name')}
-        Date: {metrics.get('start_date_local')}
-        Distance: {metrics.get('distance_km')} km
-        Moving Time: {metrics.get('duration_mins')} min
-        Elapsed Time: {metrics.get('elapsed_mins')} min
-        Stopped Time: {metrics.get('stopped_mins')} min
-        Elevation Gain: {metrics.get('elevation_m')} m
-        Avg Pace: {metrics.get('average_pace')} /km
-        Max Pace: {metrics.get('max_pace')} /km
-        Avg Heart Rate: {metrics.get('average_heartrate', 'N/A')} bpm
-        Max Heart Rate: {metrics.get('max_heartrate', 'N/A')} bpm
-        Avg Cadence: {metrics.get('average_cadence', 'N/A')} spm
-        Calories: {metrics.get('calories', 'N/A')} kcal
-        Relative Effort: {metrics.get('suffer_score', 'N/A')}
-        Gear: {metrics.get('gear', 'N/A')}{f" ({metrics.get('gear_distance_km')}km total)" if metrics.get('gear_distance_km') else ""}
-        
-        ── WEATHER CONDITIONS ──
-        Temperature: {weather.get('temperature_c', 'N/A')}°C
-        Feels Like: {weather.get('feels_like_c', 'N/A')}°C
-        Humidity: {weather.get('humidity_pct', 'N/A')}%
-        Dew Point: {weather.get('dew_point_c', 'N/A')}°C
-        Wind Speed: {weather.get('wind_speed_kmh', 'N/A')} km/h
-        Precipitation: {weather.get('precipitation_mm', 'N/A')} mm
-        
-        ── TRAINING LOAD (28-DAY WINDOW) ──
-        Acute Load (7d): {training_data.get('acute_load_7d')}
-        Chronic Load (weekly avg): {training_data.get('chronic_load_weekly_avg')}
-        ACWR: {training_data.get('acwr')}
-        Health Status: {training_data.get('health_status')}
-        Injury Risk: {training_data.get('injury_risk')}
-        Runs (7d / 28d): {training_data.get('runs_last_7d')} / {training_data.get('runs_last_28d')}
-        Distance (7d / 28d): {training_data.get('distance_last_7d_km')} km / {training_data.get('distance_last_28d_km')} km
-        
-        ── BLOG STRUCTURE ──
-        Write the post in these sections:
-        
-        1. **Run Snapshot** — Open with the key numbers: distance, pace, duration, heart rate.
-           Set the context (time of day, elevation, weather conditions).
-           Mention the actual temperature, humidity, and how it felt.
-           Keep it punchy — 2-3 sentences max.
-        
-        2. **Pace & Effort Breakdown** — Analyze the avg vs max pace gap.
-           What does the difference suggest about pacing strategy?
-           If heart rate data is available, discuss the effort-to-pace ratio.
-           Compute and reference pace per km in min:sec format.
-           If cadence is available, assess running form efficiency (optimal ~170-185 spm).
-           Factor in weather impact — heat/humidity slow pace by ~2-5% per 5°C above 20°C.
-           If dew point > 16°C, note the impact on breathing and evaporative cooling.
-        
-        3. **Route Narrative** — Tell the story of how Raman performed across different
-           sections of the route, tying together elevation changes and pace variations.
-           Use the per-kilometer segment data below to narrate the run chronologically.
-           Describe how pace responded to uphills, downhills, and flat stretches.
-           Identify the fastest and slowest segments and explain why — was it terrain,
-           fatigue, a deliberate push, or a recovery section?
-           Note any negative/positive splits and what they reveal about race strategy.
-           Reference specific km markers, elevation deltas, and pace values.
-           Make it read like a race commentary — vivid but data-backed.
-           If no segment data is available, skip this section entirely.
-{route_segments_text}
-        4. **Workload Intelligence** — Dissect the ACWR number.
-           Compare acute vs chronic load with actual values.
-           Explain what the ratio means in practical terms for injury risk and adaptation.
-           Reference the training frequency (runs per week vs month) and volume trends.
-           Use the ACWR zones:
-           • Below 0.8: Undertraining / detraining risk
-           • 0.8–1.3: Optimal training zone
-           • 1.3–1.5: Overreaching — caution
-           • Above 1.5: Danger zone — high injury risk
-        
-        5. **Physiological Impact** — Based on the pace, duration, heart rate, and effort:
-           What energy system was primarily targeted?
-           What adaptations is this session driving? (e.g., mitochondrial density,
-           capillarization, lactate clearance, fat oxidation, cardiac output)
-           Be specific — reference the actual numbers to justify the analysis.
-        
-        6. **Recovery & Next Session** — Given the current ACWR and today's effort:
-           How much recovery does Raman need before the next session?
-           Prescribe a specific next workout (type, distance, target pace, intensity).
-           Explain the reasoning using the load data.
-        
-        7. **Training Trajectory** — Zoom out to the 28-day picture.
-           Is Raman building volume safely? Is the progression rate sustainable?
-           What should the next 1-2 weeks look like to optimize adaptation
-           without spiking injury risk?
-        
-        ── FORMATTING RULES ──
-        - Reference actual numbers throughout — don't just describe, quantify.
-        - When discussing pace, always use min:sec/km format.
-        - Show your analytical reasoning (e.g., "At an ACWR of 1.12, the acute load
-          of 180.5 sits comfortably within the chronic baseline of 161.2...").
-        - Avoid vague statements like "good effort" or "solid run" without data backing.
-        - Avoid generic motivational clichés.
-        - Keep the length around 600–900 words.
-        
-        End with a concrete coaching directive referencing specific numbers
-        (ACWR target, weekly km target, next session pace).
-        
-        At the very end of the blog post, include a link to the original Strava activity:
-        <p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>
-        """
+    user_prompt = _load_prompt("blog_structure.txt").format(
+        session_data=session_data,
+        weather_data=weather_data,
+        training_load_data=training_load_data,
+        route_segments=route_segments_text,
+        strava_url=strava_url,
+    )
 
     blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7)
+
+    # Inject charts deterministically after specific sections
+    # Elevation + Pace charts go after Route Narrative (before Workload Intelligence)
+    route_charts = ""
+    if elevation_profile and elevation_profile.get('distance_km'):
+        route_charts += _build_elevation_chart_html(elevation_profile)
+        if elevation_profile.get('pace_min_per_km'):
+            route_charts += _build_pace_chart_html(elevation_profile)
+    if route_charts:
+        blog_html = _inject_before_section(blog_html, "Workload Intelligence", route_charts)
+
+    # ACWR gauge goes after Workload Intelligence (before Physiological Impact)
+    acwr_value = training_data.get('acwr')
+    if acwr_value is not None:
+        blog_html = _inject_before_section(blog_html, "Physiological Impact", _build_acwr_gauge_html(acwr_value))
 
     # Append gear affiliate block with disclosure
     blog_html += _build_gear_html(metrics)
 
-    # Append Chart.js charts if stream data is available
-    if elevation_profile and elevation_profile.get('distance_km'):
-        blog_html += _build_elevation_chart_html(elevation_profile)
-        if elevation_profile.get('pace_min_per_km'):
-            blog_html += _build_pace_chart_html(elevation_profile)
-
     return blog_html
+
+
+def _inject_before_section(html: str, section_title: str, chart_html: str) -> str:
+    """Injects chart HTML just before an <h2> section. Falls back to appending if section not found."""
+    marker = f"<h2>{section_title}</h2>"
+    if marker in html:
+        return html.replace(marker, chart_html + marker, 1)
+    # Try case-insensitive match
+    lower = html.lower()
+    lower_marker = marker.lower()
+    idx = lower.find(lower_marker)
+    if idx != -1:
+        return html[:idx] + chart_html + html[idx:]
+    # Fallback: append at end
+    return html + chart_html
 
 
 def _build_gear_html(metrics: dict) -> str:
@@ -397,26 +357,138 @@ else {{ window.addEventListener('chartjs-ready', renderPaceChart); }}
 """
 
 
+def _build_acwr_gauge_html(acwr_value: float) -> str:
+    """Builds a semi-circular ACWR gauge chart with a needle pointer using Chart.js"""
+    clamped = max(0.0, min(float(acwr_value), 2.0))
+
+    if clamped < 0.8:
+        zone_label = "Under-training"
+        zone_color = "#7eb8da"
+    elif clamped <= 1.3:
+        zone_label = "Optimal"
+        zone_color = "#4caf50"
+    elif clamped <= 1.5:
+        zone_label = "Overreaching"
+        zone_color = "#ff9800"
+    else:
+        zone_label = "Danger Zone"
+        zone_color = "#f44336"
+
+    return f"""
+<div style="max-width:400px;margin:24px auto;text-align:center;">
+<canvas id="acwrGauge" width="400" height="260"></canvas>
+</div>
+<script>
+function renderAcwrGauge() {{
+  var acwrValue = {clamped};
+  var acwrMax = 2.0;
+  var ctx = document.getElementById('acwrGauge').getContext('2d');
+
+  var needlePlugin = {{
+    id: 'acwrNeedle',
+    afterDatasetDraw: function(chart) {{
+      var meta = chart.getDatasetMeta(0);
+      var arc = meta.data[0];
+      var cx = arc.x;
+      var cy = arc.y;
+      var radius = arc.outerRadius * 0.85;
+      var ratio = acwrValue / acwrMax;
+      var angle = Math.PI * (1 - ratio);
+
+      var needleX = cx + radius * Math.cos(angle);
+      var needleY = cy - radius * Math.sin(angle);
+
+      var drawCtx = chart.ctx;
+      drawCtx.save();
+
+      drawCtx.beginPath();
+      drawCtx.moveTo(cx, cy);
+      drawCtx.lineTo(needleX, needleY);
+      drawCtx.lineWidth = 3;
+      drawCtx.strokeStyle = '#333';
+      drawCtx.stroke();
+
+      drawCtx.beginPath();
+      drawCtx.arc(needleX, needleY, 5, 0, Math.PI * 2);
+      drawCtx.fillStyle = '#333';
+      drawCtx.fill();
+
+      drawCtx.beginPath();
+      drawCtx.arc(cx, cy, 8, 0, Math.PI * 2);
+      drawCtx.fillStyle = '#333';
+      drawCtx.fill();
+
+      drawCtx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
+      drawCtx.fillStyle = '{zone_color}';
+      drawCtx.textAlign = 'center';
+      drawCtx.fillText(acwrValue.toFixed(2), cx, cy - 20);
+
+      drawCtx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+      drawCtx.fillStyle = '#666';
+      drawCtx.fillText('{zone_label}', cx, cy - 2);
+
+      drawCtx.restore();
+    }}
+  }};
+
+  var gradient = ctx.createLinearGradient(0, 0, 400, 0);
+  gradient.addColorStop(0.0, '#7eb8da');
+  gradient.addColorStop(0.35, '#7eb8da');
+  gradient.addColorStop(0.40, '#4caf50');
+  gradient.addColorStop(0.65, '#4caf50');
+  gradient.addColorStop(0.70, '#ff9800');
+  gradient.addColorStop(0.75, '#ff9800');
+  gradient.addColorStop(0.80, '#f44336');
+  gradient.addColorStop(1.0, '#f44336');
+
+  new Chart(ctx, {{
+    type: 'doughnut',
+    data: {{
+      datasets: [{{
+        data: [100],
+        backgroundColor: [gradient],
+        borderWidth: 0,
+        circumference: 180,
+        rotation: 270
+      }}]
+    }},
+    options: {{
+      responsive: true,
+      cutout: '85%',
+      plugins: {{
+        legend: {{ display: false }},
+        tooltip: {{ enabled: false }}
+      }}
+    }},
+    plugins: [needlePlugin]
+  }});
+
+  var canvas = document.getElementById('acwrGauge');
+  var lCtx = canvas.getContext('2d');
+  lCtx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+  lCtx.fillStyle = '#999';
+  lCtx.textAlign = 'left';
+  lCtx.fillText('0.0', 28, canvas.height - 10);
+  lCtx.textAlign = 'center';
+  lCtx.fillText('1.0', canvas.width / 2, 18);
+  lCtx.textAlign = 'right';
+  lCtx.fillText('2.0', canvas.width - 28, canvas.height - 10);
+}}
+if (window.Chart) {{ renderAcwrGauge(); }}
+else {{ window.addEventListener('chartjs-ready', renderAcwrGauge); }}
+</script>
+"""
+
+
 async def generate_blog_title(metrics: dict) -> str:
     """Uses Llama 3 via OpenRouter/Groq to generate a creative, SEO-friendly blog post title"""
 
-    prompt = f"""
-        Generate a single blog post title for a running activity recap on renuramansahu.com.
-
-        Activity details:
-        - Name: {metrics.get('name')}
-        - Distance: {metrics.get('distance_km')} km
-        - Duration: {metrics.get('duration_mins')} minutes
-        - Elevation: {metrics.get('elevation_m')} meters
-
-        Rules:
-        - Return ONLY the title text, nothing else
-        - No quotes, no explanation, no punctuation wrapping
-        - Make it engaging, specific to the run, and SEO-friendly
-        - Reference the athlete "Raman" by name
-        - Keep it under 80 characters
-        - Avoid generic phrases like "A Great Run" or "Another Day"
-        """
+    prompt = _load_prompt("title_prompt.txt").format(
+        name=metrics.get('name'),
+        distance_km=metrics.get('distance_km'),
+        duration_mins=metrics.get('duration_mins'),
+        elevation_m=metrics.get('elevation_m'),
+    )
 
     result = await _openrouter_chat(
         "You generate blog post titles. Return ONLY the title text, nothing else.",
@@ -429,30 +501,16 @@ async def generate_blog_title(metrics: dict) -> str:
 async def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
     """Uses Llama 3 via OpenRouter/Groq to generate a one-liner next run recommendation"""
 
-    prompt = f"""
-        You are an experienced running coach. Based on the athlete's latest run and
-        training load data, generate a single actionable one-liner recommendation
-        for their next run.
-
-        Latest run:
-        - Distance: {metrics.get('distance_km')} km
-        - Duration: {metrics.get('duration_mins')} minutes
-        - Elevation: {metrics.get('elevation_m')} meters
-
-        Training load:
-        - ACWR: {training_data.get('acwr', 'N/A')}
-        - Health status: {training_data.get('health_status', 'N/A')}
-        - Injury risk: {training_data.get('injury_risk', 'N/A')}
-        - Runs last 7 days: {training_data.get('runs_last_7d')}
-        - Distance last 7 days: {training_data.get('distance_last_7d_km')} km
-
-        Rules:
-        - Return ONLY one sentence, no quotes, no explanation
-        - Be specific (mention distance, pace, or workout type)
-        - Factor in current ACWR and injury risk
-        - Keep it under 120 characters
-        - Sound like a real coach, not an AI
-        """
+    prompt = _load_prompt("advice_prompt.txt").format(
+        distance_km=metrics.get('distance_km'),
+        duration_mins=metrics.get('duration_mins'),
+        elevation_m=metrics.get('elevation_m'),
+        acwr=training_data.get('acwr', 'N/A'),
+        health_status=training_data.get('health_status', 'N/A'),
+        injury_risk=training_data.get('injury_risk', 'N/A'),
+        runs_last_7d=training_data.get('runs_last_7d'),
+        distance_last_7d_km=training_data.get('distance_last_7d_km'),
+    )
 
     result = await _openrouter_chat(
         "You are an experienced running coach. Return ONLY one sentence, no quotes, no explanation.",

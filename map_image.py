@@ -45,9 +45,11 @@ def _overlay_metrics(map_image: Image.Image, metrics: dict, weather: dict) -> Im
         font_small = ImageFont.load_default()
         font_weather = ImageFont.load_default()
 
-    # ── Bottom-left panel: run metrics ──
-    panel_w, panel_h = 480, 120
-    panel_x, panel_y = 20, img.height - panel_h - 20
+    # ── Bottom panel: run metrics (full width) ──
+    panel_margin = 20
+    panel_w = img.width - 2 * panel_margin
+    panel_h = 120
+    panel_x, panel_y = panel_margin, img.height - panel_h - 20
 
     draw.rounded_rectangle(
         [panel_x, panel_y, panel_x + panel_w, panel_y + panel_h],
@@ -55,10 +57,19 @@ def _overlay_metrics(map_image: Image.Image, metrics: dict, weather: dict) -> Im
         fill=(0, 0, 0, 180),
     )
 
+    # Format duration
+    raw_mins = metrics.get('duration_mins', 0)
+    total_seconds = int(round(raw_mins * 60))
+    hours, remainder = divmod(total_seconds, 3600)
+    mins, secs = divmod(remainder, 60)
+    if hours > 0:
+        duration = f"{hours} hr {mins} min {secs} sec"
+    else:
+        duration = f"{mins} min {secs} sec"
+
     # Stat values
     distance = f"{metrics.get('distance_km', 0)} km"
     pace = f"{metrics.get('average_pace', 'N/A')} /km"
-    duration = f"{metrics.get('duration_mins', 0)} min"
 
     padding = 20
     usable_w = panel_w - 2 * padding

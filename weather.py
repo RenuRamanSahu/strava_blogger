@@ -1,5 +1,5 @@
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 
 async def get_weather_for_activity(lat: float, lng: float, start_time: str, client: httpx.AsyncClient) -> dict:
@@ -10,7 +10,12 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
     date_str = dt.strftime("%Y-%m-%d")
     hour = dt.hour
 
-    url = "https://api.open-meteo.com/v1/forecast"
+    # Use archive API for past dates, forecast API for recent/future dates
+    days_ago = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).days
+    if days_ago > 2:
+        url = "https://archive-api.open-meteo.com/v1/archive"
+    else:
+        url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": round(lat, 4),
         "longitude": round(lng, 4),

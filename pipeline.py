@@ -82,3 +82,66 @@ async def process_pipeline_background(activity_id: int):
         import traceback
         print(f"❌ Error executing content pipeline: {e}")
         traceback.print_exc()
+
+
+async def process_pipeline_streaming(activity_id: int):
+    """Same pipeline as process_pipeline_background, but yields progress messages for SSE streaming"""
+    try:
+        async with httpx.AsyncClient() as client:
+            access_token = await get_strava_access_token(client)
+            yield "✅ Step 1: Strava token acquired"
+
+            metrics = await get_activity_details(activity_id, access_token, client)
+            yield f"✅ Step 2: Activity metrics fetched — {metrics.get('name')}"
+
+            recent_activities = await get_recent_activities(access_token, client)
+            training_data = compute_acwr_and_health(recent_activities)
+            yield f"✅ Step 3: ACWR computed — {training_data.get('acwr')} ({training_data.get('health_status')})"
+
+            strava_url = f"https://www.strava.com/activities/{activity_id}"
+
+            elevation_profile = await get_activity_streams(activity_id, access_token, client)
+            if elevation_profile:
+                yield f"✅ Step 4: Elevation profile fetched — {len(elevation_profile.get('distance_km', []))} points"
+            else:
+                yield "⚠️ Step 4: No stream data — skipping elevation profile"
+
+            weather = {}
+            start_latlng = metrics.get("start_latlng", [])
+            if start_latlng and len(start_latlng) == 2:
+                weather = await get_weather_for_activity(
+                    start_latlng[0], start_latlng[1], metrics["start_date_local"], client
+                )
+                yield f"✅ Step 5: Weather fetched — {weather.get('summary')}"
+            else:
+                yield "⚠️ Step 5: No location data — skipping weather"
+
+            featured_media_id = None
+            polyline = metrics.get("polyline", "")
+            if polyline:
+                image_bytes = generate_route_image(polyline, metrics, weather)
+                filename = f"run-map-{activity_id}.png"
+                featured_media_id = await upload_media_to_wordpress(image_bytes, filename, client)
+                yield f"✅ Step 6: Route map generated and uploaded — media ID {featured_media_id}"
+            else:
+                yield "⚠️ Step 6: No polyline data — skipping map image"
+
+            post_title = generate_blog_title(metrics)
+            yield f"✅ Step 7a: AI title generated — {post_title}"
+            blog_html = generate_blog_with_gemini(metrics, training_data, strava_url, weather, elevation_profile)
+            yield f"✅ Step 7b: Blog content generated ({len(blog_html)} chars)"
+
+            wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
+            blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
+            yield f"✅ Step 8: Blog published — {blog_url}"
+
+            next_run_advice = generate_next_run_advice(metrics, training_data)
+            yield f"✅ Step 9a: Next run advice generated — {next_run_advice}"
+            description = build_strava_description(metrics, training_data, blog_url, next_run_advice, weather)
+            await update_strava_description(activity_id, access_token, description, client)
+            yield "✅ Step 9b: Strava description updated"
+
+            yield f"🎉 Done! Blog post published at {blog_url}"
+
+    except Exception as e:
+        yield f"❌ Pipeline error: {e}"

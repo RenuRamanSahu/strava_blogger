@@ -1,8 +1,9 @@
 import math
+import base64
 
 
 def build_acwr_gauge_html(acwr_value: float) -> str:
-    """Builds a pure SVG semi-circular ACWR gauge — no JavaScript required"""
+    """Builds an ACWR gauge as a base64-encoded SVG inside an <img> tag (WordPress-safe)"""
     clamped = max(0.0, min(float(acwr_value), 2.0))
 
     if clamped < 0.8:
@@ -18,8 +19,23 @@ def build_acwr_gauge_html(acwr_value: float) -> str:
         zone_label = "Danger Zone"
         zone_color = "#f44336"
 
+    svg = _build_svg(clamped, zone_label, zone_color)
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
+    data_uri = f"data:image/svg+xml;base64,{encoded}"
+
+    return (
+        f'<div style="max-width:420px;margin:24px auto;text-align:center;">'
+        f'<img src="{data_uri}" alt="ACWR Gauge: {clamped:.2f} — {zone_label}" '
+        f'style="max-width:400px;width:100%;" />'
+        f'</div>\n'
+    )
+
+
+def _build_svg(clamped: float, zone_label: str, zone_color: str) -> str:
+    """Generates the raw SVG markup for the ACWR gauge"""
+
     # SVG arc parameters
-    cx, cy = 200, 180  # center of the arc
+    cx, cy = 200, 195  # center of the arc
     r = 140            # radius
     stroke_w = 22      # arc thickness
 
@@ -58,25 +74,36 @@ def build_acwr_gauge_html(acwr_value: float) -> str:
     nx = cx + needle_len * math.cos(needle_rad)
     ny = cy - needle_len * math.sin(needle_rad)
 
-    return f"""
-<div style="max-width:420px;margin:24px auto;text-align:center;">
-<svg viewBox="0 0 400 220" xmlns="http://www.w3.org/2000/svg" style="max-width:400px;width:100%;">
-  <!-- Zone arcs -->
-{arcs_svg}
-  <!-- Needle -->
-  <line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" stroke="#222" stroke-width="3.5" stroke-linecap="round"/>
+    # Scale ticks and labels placed just outside the arc along a consistent circular path
+    tick_inner_r = r + stroke_w / 2 + 2
+    tick_outer_r = r + stroke_w / 2 + 10
+    label_r = r + stroke_w / 2 + 22
+    scale_svg = ""
+    for value in [0.0, 0.8, 1.0, 1.3, 1.5, 2.0]:
+        angle = 180 - (value / 2.0) * 180
+        rad = math.radians(angle)
+        # Tick line
+        tx1 = cx + tick_inner_r * math.cos(rad)
+        ty1 = cy - tick_inner_r * math.sin(rad)
+        tx2 = cx + tick_outer_r * math.cos(rad)
+        ty2 = cy - tick_outer_r * math.sin(rad)
+        scale_svg += f'  <line x1="{tx1:.1f}" y1="{ty1:.1f}" x2="{tx2:.1f}" y2="{ty2:.1f}" stroke="#999" stroke-width="1.5"/>\n'
+        # Label
+        lx = cx + label_r * math.cos(rad)
+        ly = cy - label_r * math.sin(rad)
+        if angle > 135:
+            anchor = "end"
+        elif angle < 45:
+            anchor = "start"
+        else:
+            anchor = "middle"
+        display = f"{value:.1f}" if value in (0.0, 1.0, 2.0) else str(value)
+        scale_svg += f'  <text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" font-size="11" fill="#666" font-family="Arial,sans-serif">{display}</text>\n'
+
+    return f"""<svg viewBox="0 0 400 260" xmlns="http://www.w3.org/2000/svg">
+{arcs_svg}{scale_svg}  <line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" stroke="#222" stroke-width="3.5" stroke-linecap="round"/>
   <circle cx="{nx:.1f}" cy="{ny:.1f}" r="5" fill="#d32f2f"/>
   <circle cx="{cx}" cy="{cy}" r="8" fill="#333"/>
-
-  <!-- ACWR value -->
-  <text x="{cx}" y="{cy - 18}" text-anchor="middle" font-size="28" font-weight="bold" fill="{zone_color}" font-family="-apple-system,BlinkMacSystemFont,sans-serif">{clamped:.2f}</text>
-  <!-- Zone label -->
-  <text x="{cx}" y="{cy + 2}" text-anchor="middle" font-size="13" fill="#666" font-family="-apple-system,BlinkMacSystemFont,sans-serif">{zone_label}</text>
-
-  <!-- Scale labels -->
-  <text x="38" y="{cy + 28}" text-anchor="start" font-size="12" fill="#999" font-family="-apple-system,BlinkMacSystemFont,sans-serif">0.0</text>
-  <text x="{cx}" y="28" text-anchor="middle" font-size="12" fill="#999" font-family="-apple-system,BlinkMacSystemFont,sans-serif">1.0</text>
-  <text x="362" y="{cy + 28}" text-anchor="end" font-size="12" fill="#999" font-family="-apple-system,BlinkMacSystemFont,sans-serif">2.0</text>
-</svg>
-</div>
-"""
+  <text x="{cx}" y="{cy + 30}" text-anchor="middle" font-size="28" font-weight="bold" fill="{zone_color}" font-family="Arial,sans-serif">{clamped:.2f}</text>
+  <text x="{cx}" y="{cy + 48}" text-anchor="middle" font-size="13" fill="#666" font-family="Arial,sans-serif">{zone_label}</text>
+</svg>"""

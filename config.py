@@ -11,6 +11,7 @@ WP_APP_PASSWORD = os.environ.get("WP_APPLICATION_PASSWORD")
 WP_SITE_URL = os.environ.get("WP_SITE_URL", "https://renuramansahu.com")
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+WAQI_API_TOKEN = os.environ.get("WAQI_API_TOKEN")
 
 # --- GEAR AFFILIATE LINKS (Map gear name exactly as it appears in Strava) ---
 GEAR_LINKS = {

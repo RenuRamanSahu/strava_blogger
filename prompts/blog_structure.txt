@@ -34,6 +34,7 @@ SECTIONS (use these exact <h2> headings):
   * AQI 151-200 (Unhealthy): significant 6-10% pace penalty, elevated HR for same effort, recommend reducing intensity
   * AQI 201+: outdoor running not recommended
   * If PM2.5 > 35 µg/m³: note fine particulate risk to airways, especially during mouth-breathing at tempo+ efforts
+  * IMPORTANT: AQI data is modeled (CAMS, ~45 km resolution), not from a local sensor. When citing AQI, add a brief note like "(estimated from atmospheric model)" to be transparent about accuracy.
 - Always use min:sec/km format for pace values
 
 <h2>Route Narrative</h2>

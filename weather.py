@@ -1,7 +1,6 @@
 import asyncio
 import httpx
 from datetime import datetime, timedelta, timezone
-from config import WAQI_API_TOKEN
 
 
 async def get_weather_for_activity(lat: float, lng: float, start_time: str, client: httpx.AsyncClient) -> dict:
@@ -36,20 +35,15 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
         "timezone": "auto",
     }
 
-    # Choose AQI source: WAQI (real-time, sensor-based) for recent runs, Open-Meteo for historical
-    if days_ago <= 0 and WAQI_API_TOKEN:
-        aqi_url = f"https://api.waqi.info/feed/geo:{lat_r};{lng_r}/"
-        aqi_params = {"token": WAQI_API_TOKEN}
-    else:
-        aqi_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
-        aqi_params = {
-            "latitude": lat_r,
-            "longitude": lng_r,
-            "hourly": "us_aqi,pm2_5,pm10",
-            "start_date": date_str,
-            "end_date": date_str,
-            "timezone": "auto",
-        }
+    aqi_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+    aqi_params = {
+        "latitude": lat_r,
+        "longitude": lng_r,
+        "hourly": "us_aqi,pm2_5,pm10",
+        "start_date": date_str,
+        "end_date": date_str,
+        "timezone": "auto",
+    }
 
     # Fetch weather and AQI concurrently
     print(f"\U0001f4e4 Fetching weather + AQI for ({lat}, {lng}) on {date_str} hour {hour}")
@@ -83,11 +77,14 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
         print(f"\U0001f4e5 AQI response {aqi_resp.status_code}")
         try:
             aqi_resp.raise_for_status()
-            aqi_result = _parse_aqi_response(aqi_resp, hour, days_ago)
-            aqi_val = aqi_result["aqi"]
-            pm25 = aqi_result["pm2_5"]
-            pm10 = aqi_result["pm10"]
-            aqi_cat = aqi_result["aqi_category"]
+            aqi_data = aqi_resp.json()
+            aqi_hourly = aqi_data.get("hourly", {})
+            aqi_idx = min(hour, len(aqi_hourly.get("us_aqi", [])) - 1)
+            if aqi_idx >= 0:
+                aqi_val = aqi_hourly.get("us_aqi", [None])[aqi_idx]
+                pm25 = aqi_hourly.get("pm2_5", [None])[aqi_idx]
+                pm10 = aqi_hourly.get("pm10", [None])[aqi_idx]
+                aqi_cat = _aqi_category(aqi_val)
         except Exception as e:
             print(f"\u26a0\ufe0f AQI parse failed: {e}")
     else:
@@ -105,38 +102,6 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
         "pm2_5": pm25,
         "pm10": pm10,
         "summary": _build_weather_summary(temp, feels_like, humidity, wind_speed, precipitation, aqi_val, aqi_cat),
-    }
-
-
-def _parse_aqi_response(response, hour: int, days_ago: int) -> dict:
-    """Parses AQI from either WAQI (real-time) or Open-Meteo (historical) response"""
-    data = response.json()
-    aqi_val, pm25, pm10 = None, None, None
-
-    if "status" in data and data.get("status") == "ok":
-        # WAQI response format
-        d = data.get("data", {})
-        aqi_val = d.get("aqi")
-        iaqi = d.get("iaqi", {})
-        pm25 = iaqi.get("pm25", {}).get("v")
-        pm10 = iaqi.get("pm10", {}).get("v")
-        station = d.get("city", {}).get("name", "unknown")
-        print(f"\U0001f4cd AQI from WAQI station: {station}")
-    else:
-        # Open-Meteo response format
-        aqi_hourly = data.get("hourly", {})
-        aqi_idx = min(hour, len(aqi_hourly.get("us_aqi", [])) - 1)
-        if aqi_idx >= 0:
-            aqi_val = aqi_hourly.get("us_aqi", [None])[aqi_idx]
-            pm25 = aqi_hourly.get("pm2_5", [None])[aqi_idx]
-            pm10 = aqi_hourly.get("pm10", [None])[aqi_idx]
-        print(f"\U0001f30d AQI from Open-Meteo (modeled)")
-
-    return {
-        "aqi": aqi_val,
-        "aqi_category": _aqi_category(aqi_val),
-        "pm2_5": pm25,
-        "pm10": pm10,
     }
 
 

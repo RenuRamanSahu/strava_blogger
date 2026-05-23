@@ -1,7 +1,7 @@
 import os
 import logging
 import httpx
-from config import GEAR_LINKS, OPENROUTER_API_KEY
+from config import OPENROUTER_API_KEY, GEAR_AFFILIATE
 from charts import build_run_chart_html, build_route_segments
 from acwr_gauge import build_acwr_gauge_html
 
@@ -126,7 +126,8 @@ def _build_weather_data(weather: dict) -> str:
         f"Precipitation: {weather.get('precipitation_mm', 'N/A')} mm\n"
         f"Air Quality Index (US AQI): {weather.get('aqi', 'N/A')} — {weather.get('aqi_category', 'N/A')}\n"
         f"PM2.5: {weather.get('pm2_5', 'N/A')} µg/m³\n"
-        f"PM10: {weather.get('pm10', 'N/A')} µg/m³"
+        f"PM10: {weather.get('pm10', 'N/A')} µg/m³\n"
+        f"(Note: AQI is modeled data from CAMS at ~45 km resolution — actual local conditions may differ)"
     )
 
 
@@ -177,22 +178,22 @@ def _inject_before_section(html: str, section_title: str, chart_html: str) -> st
 
 
 def _build_gear_html(metrics: dict) -> str:
-    """Builds a gear affiliate link block with transparency disclosure"""
-    gear_name = metrics.get('gear', 'N/A')
-    if gear_name == 'N/A':
+    """Builds gear affiliate links block from config list"""
+    if not GEAR_AFFILIATE:
         return ""
-    link = GEAR_LINKS.get(gear_name)
-    if not link:
-        return ""
-    distance = metrics.get('gear_distance_km')
-    distance_text = f" ({distance} km on this pair)" if distance else ""
+    items = []
+    for gear in GEAR_AFFILIATE:
+        items.append(
+            f'<a href="{gear["link"]}" target="_blank" rel="nofollow noopener">'
+            f'{gear["name"]}</a> ({gear["type"]})'
+        )
+    gear_list = " &bull; ".join(items)
     return (
-        f'<p><strong>Gear Used:</strong> '
-        f'<a href="{link}" target="_blank" rel="nofollow noopener">{gear_name}</a>'
-        f'{distance_text}</p>\n'
+        f'<p><strong>Gear Used:</strong> {gear_list}</p>\n'
         f'<p style="font-size:0.75em;color:#888;">'
-        f'Transparency: As an Amazon Associate, I earn a small commission if you purchase '
-        f'through the link above — at no extra cost to you.</p>\n'
+        f'Transparency: The links above are affiliate links \u2014 if you purchase through them, '
+        f'I earn a small commission at no extra cost to you. '
+        f'It helps support my training and this data analysis hobby project.</p>\n'
     )
 
 

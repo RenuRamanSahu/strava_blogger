@@ -11,9 +11,9 @@ WP_APP_PASSWORD = os.environ.get("WP_APPLICATION_PASSWORD")
 WP_SITE_URL = os.environ.get("WP_SITE_URL", "https://renuramansahu.com")
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-WAQI_API_TOKEN = os.environ.get("WAQI_API_TOKEN")
 
-# --- GEAR AFFILIATE LINKS (Map gear name exactly as it appears in Strava) ---
-GEAR_LINKS = {
-    "Asics Novoblast 5": "https://amzn.to/4djQPGH",
-}
+# --- GEAR AFFILIATE LINKS ---
+# Add/remove items as your gear changes. All entries are shown at the end of each post.
+GEAR_AFFILIATE = [
+    {"name": "Asics Novoblast 5", "link": "https://amzn.to/4djQPGH", "type": "Shoes"},
+]

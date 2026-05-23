@@ -159,12 +159,12 @@ def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation
     if acwr_value is not None:
         blog_html = _inject_before_section(blog_html, "Physiological Impact", build_acwr_gauge_html(acwr_value))
 
-    # AQI gauge before Pace & Effort Breakdown
+    # AQI gauge after Run Snapshot (where weather context is set)
     aqi_value = weather.get('aqi') if weather else None
     if aqi_value is not None:
         blog_html = _inject_before_section(blog_html, "Pace &amp; Effort Breakdown", build_aqi_gauge_html(aqi_value))
         # Also try without HTML entity in case AI writes it differently
-        if "Pace & Effort" in blog_html and build_aqi_gauge_html(aqi_value) not in blog_html:
+        if build_aqi_gauge_html(aqi_value) not in blog_html:
             blog_html = _inject_before_section(blog_html, "Pace & Effort Breakdown", build_aqi_gauge_html(aqi_value))
 
     # Gear affiliate block at end

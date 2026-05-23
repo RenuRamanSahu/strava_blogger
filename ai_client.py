@@ -4,6 +4,7 @@ import httpx
 from config import OPENROUTER_API_KEY, GEAR_AFFILIATE
 from charts import build_run_chart_html, build_route_segments
 from acwr_gauge import build_acwr_gauge_html
+from aqi_gauge import build_aqi_gauge_html
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: 
     )
 
     blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7, role="writing")
-    blog_html = _inject_charts(blog_html, metrics, training_data, elevation_profile)
+    blog_html = _inject_charts(blog_html, metrics, training_data, elevation_profile, weather or {})
 
     return blog_html
 
@@ -144,8 +145,8 @@ def _build_training_load_data(training_data: dict) -> str:
     )
 
 
-def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation_profile: dict) -> str:
-    """Deterministically injects charts and gear block into the AI-generated blog HTML"""
+def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation_profile: dict, weather: dict) -> str:
+    """Deterministically injects charts and gauge blocks into the AI-generated blog HTML"""
     # Combined run chart (elevation + pace + cadence) before Workload Intelligence
     route_charts = ""
     if elevation_profile and elevation_profile.get('distance_km'):
@@ -157,6 +158,14 @@ def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation
     acwr_value = training_data.get('acwr')
     if acwr_value is not None:
         blog_html = _inject_before_section(blog_html, "Physiological Impact", build_acwr_gauge_html(acwr_value))
+
+    # AQI gauge before Pace & Effort Breakdown
+    aqi_value = weather.get('aqi') if weather else None
+    if aqi_value is not None:
+        blog_html = _inject_before_section(blog_html, "Pace &amp; Effort Breakdown", build_aqi_gauge_html(aqi_value))
+        # Also try without HTML entity in case AI writes it differently
+        if "Pace & Effort" in blog_html and build_aqi_gauge_html(aqi_value) not in blog_html:
+            blog_html = _inject_before_section(blog_html, "Pace & Effort Breakdown", build_aqi_gauge_html(aqi_value))
 
     # Gear affiliate block at end
     blog_html += _build_gear_html(metrics)

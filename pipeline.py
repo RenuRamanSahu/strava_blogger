@@ -43,7 +43,7 @@ async def process_pipeline_background(activity_id: int):
             start_latlng = metrics.get("start_latlng", [])
             if start_latlng and len(start_latlng) == 2:
                 weather = await get_weather_for_activity(
-                    start_latlng[0], start_latlng[1], metrics["start_date_local"], client
+                    start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
                 )
                 print(f"\u2705 Step 5: Weather fetched \u2014 {weather.get('summary')}")
             else:
@@ -110,7 +110,7 @@ async def process_pipeline_streaming(activity_id: int):
             start_latlng = metrics.get("start_latlng", [])
             if start_latlng and len(start_latlng) == 2:
                 weather = await get_weather_for_activity(
-                    start_latlng[0], start_latlng[1], metrics["start_date_local"], client
+                    start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
                 )
                 yield f"✅ Step 5: Weather fetched — {weather.get('summary')}"
             else:

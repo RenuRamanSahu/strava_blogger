@@ -5,13 +5,18 @@ from datetime import datetime, timedelta, timezone
 async def get_weather_for_activity(lat: float, lng: float, start_time: str, client: httpx.AsyncClient) -> dict:
     """Fetches weather conditions at the activity's location and start time using Open-Meteo API"""
 
-    # Parse the activity start time to extract date and hour
-    dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+    # Parse the activity start time — Strava's start_date_local is already in local time
+    # despite the misleading Z suffix, so we strip it and treat as naive local time
+    clean_time = start_time.replace("Z", "")
+    dt = datetime.fromisoformat(clean_time)
     date_str = dt.strftime("%Y-%m-%d")
     hour = dt.hour
 
     # Use archive API for past dates, forecast API for recent/future dates
-    days_ago = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).days
+    now_utc = datetime.now(timezone.utc)
+    # Approximate: treat local time as ~5.5h ahead of UTC for days_ago check
+    dt_approx_utc = dt.replace(tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    days_ago = (now_utc - dt_approx_utc).days
     if days_ago > 2:
         url = "https://archive-api.open-meteo.com/v1/archive"
     else:

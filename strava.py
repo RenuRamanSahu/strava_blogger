@@ -61,6 +61,7 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
         "calories": data.get("calories"),
         "average_cadence": data.get("average_cadence"),
         "start_date_local": _format_local_date(data.get("start_date_local", "")),
+        "start_date_local_raw": data.get("start_date_local", ""),
         "gear": data.get("gear", {}).get("name", "N/A") if data.get("gear") else "N/A",
         "gear_distance_km": round(data["gear"]["distance"] / 1000) if data.get("gear") and data["gear"].get("distance") else None,
         "polyline": data.get("map", {}).get("summary_polyline", "") if data.get("map") else "",

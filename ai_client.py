@@ -123,7 +123,10 @@ def _build_weather_data(weather: dict) -> str:
         f"Humidity: {weather.get('humidity_pct', 'N/A')}%\n"
         f"Dew Point: {weather.get('dew_point_c', 'N/A')}°C\n"
         f"Wind Speed: {weather.get('wind_speed_kmh', 'N/A')} km/h\n"
-        f"Precipitation: {weather.get('precipitation_mm', 'N/A')} mm"
+        f"Precipitation: {weather.get('precipitation_mm', 'N/A')} mm\n"
+        f"Air Quality Index (US AQI): {weather.get('aqi', 'N/A')} — {weather.get('aqi_category', 'N/A')}\n"
+        f"PM2.5: {weather.get('pm2_5', 'N/A')} µg/m³\n"
+        f"PM10: {weather.get('pm10', 'N/A')} µg/m³"
     )
 
 

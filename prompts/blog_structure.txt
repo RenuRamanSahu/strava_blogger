@@ -19,7 +19,7 @@ Write a 600-900 word blog post analyzing Raman's run. Use the exact data below. 
 SECTIONS (use these exact <h2> headings):
 
 <h2>Run Snapshot</h2>
-2-3 sentences only. State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity). No fluff.
+2-3 sentences only. State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity + AQI if available). No fluff.
 
 <h2>Pace & Effort Breakdown</h2>
 - Compare avg vs max pace — what does the gap reveal about pacing strategy?
@@ -27,6 +27,13 @@ SECTIONS (use these exact <h2> headings):
 - If cadence exists: assess form efficiency (optimal range 170-185 spm)
 - If temp > 20°C: quantify expected pace slowdown (~2-5% per 5°C above 20°C)
 - If dew point > 16°C: note impact on evaporative cooling and breathing
+- If AQI data exists: analyze air quality impact on performance:
+  * AQI 0-50 (Good): negligible effect, ideal for hard efforts
+  * AQI 51-100 (Moderate): sensitive runners may notice reduced lung capacity (~1-3% VO2max drop)
+  * AQI 101-150 (USG): expect 3-6% performance drop, higher perceived effort, increased breathing rate
+  * AQI 151-200 (Unhealthy): significant 6-10% pace penalty, elevated HR for same effort, recommend reducing intensity
+  * AQI 201+: outdoor running not recommended
+  * If PM2.5 > 35 µg/m³: note fine particulate risk to airways, especially during mouth-breathing at tempo+ efforts
 - Always use min:sec/km format for pace values
 
 <h2>Route Narrative</h2>
@@ -51,6 +58,7 @@ ONLY include this section if <route_segments> contains data. Otherwise skip enti
 <h2>Physiological Impact</h2>
 - Based on pace + duration + HR: which energy system was targeted?
 - Name specific adaptations this session drives (mitochondrial density, capillarization, lactate clearance, fat oxidation, cardiac output)
+- If AQI > 100 or PM2.5 > 25 µg/m³: note added respiratory stress — airway inflammation risk, recommend nasal breathing or post-run recovery adjustments
 - Justify each claim with actual numbers from the data
 - Keep this section to 3-4 sentences
 

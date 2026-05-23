@@ -1,12 +1,28 @@
 import os
+import logging
 import httpx
 from config import GEAR_LINKS, OPENROUTER_API_KEY
 from charts import build_elevation_chart_html, build_pace_chart_html, build_route_segments
 from acwr_gauge import build_acwr_gauge_html
 
+logger = logging.getLogger(__name__)
+
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct"
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+
+# Model chains per role — first model is primary, rest are fallbacks
+MODEL_CHAINS = {
+    "analysis": [
+        {"model": "deepseek/deepseek-chat-v3-0324", "provider": {"order": ["DeepSeek"]}},
+        {"model": "meta-llama/llama-3.3-70b-instruct", "provider": {"order": ["Groq"]}},
+        {"model": "google/gemini-2.0-flash-001", "provider": {"order": ["Google"]}},
+    ],
+    "writing": [
+        {"model": "meta-llama/llama-3.3-70b-instruct", "provider": {"order": ["Groq"]}},
+        {"model": "deepseek/deepseek-chat-v3-0324", "provider": {"order": ["DeepSeek"]}},
+        {"model": "google/gemini-2.0-flash-001", "provider": {"order": ["Google"]}},
+    ],
+}
 
 
 def _load_prompt(filename: str) -> str:
@@ -15,25 +31,36 @@ def _load_prompt(filename: str) -> str:
         return f.read()
 
 
-async def _openrouter_chat(system: str, user: str, temperature: float = 0.7) -> str:
-    """Sends a chat completion request to OpenRouter targeting Llama 3 on Groq"""
+async def _openrouter_chat(system: str, user: str, temperature: float = 0.7, role: str = "writing") -> str:
+    """Sends a chat request to OpenRouter, trying each model in the chain until one succeeds"""
+    chain = MODEL_CHAINS.get(role, MODEL_CHAINS["writing"])
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "model": OPENROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": temperature,
-        "provider": {"order": ["Groq"]},
-    }
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+    last_error = None
+    for entry in chain:
+        payload = {
+            "model": entry["model"],
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": temperature,
+            "provider": entry.get("provider", {}),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+                resp.raise_for_status()
+                result = resp.json()["choices"][0]["message"]["content"]
+                logger.info(f"[{role}] Success with {entry['model']}")
+                return result
+        except (httpx.HTTPStatusError, httpx.ConnectError, httpx.ReadTimeout, KeyError) as e:
+            last_error = e
+            logger.warning(f"[{role}] {entry['model']} failed: {e}. Trying next...")
+            continue
+    raise RuntimeError(f"All models failed for role '{role}'. Last error: {last_error}")
 
 
 async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: str, weather: dict = None, elevation_profile: dict = None):
@@ -55,7 +82,7 @@ async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: 
         strava_url=strava_url,
     )
 
-    blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7)
+    blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7, role="writing")
     blog_html = _inject_charts(blog_html, metrics, training_data, elevation_profile)
 
     return blog_html
@@ -182,6 +209,7 @@ async def generate_blog_title(metrics: dict) -> str:
         "You generate blog post titles. Return ONLY the title text, nothing else.",
         prompt,
         temperature=0.9,
+        role="writing",
     )
     return result.strip()
 
@@ -204,5 +232,6 @@ async def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
         "You are an experienced running coach. Return ONLY one sentence, no quotes, no explanation.",
         prompt,
         temperature=0.8,
+        role="analysis",
     )
     return result.strip()

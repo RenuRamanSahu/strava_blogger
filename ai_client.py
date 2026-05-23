@@ -162,10 +162,7 @@ def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation
     # AQI gauge after Run Snapshot (where weather context is set)
     aqi_value = weather.get('aqi') if weather else None
     if aqi_value is not None:
-        blog_html = _inject_before_section(blog_html, "Pace &amp; Effort Breakdown", build_aqi_gauge_html(aqi_value))
-        # Also try without HTML entity in case AI writes it differently
-        if build_aqi_gauge_html(aqi_value) not in blog_html:
-            blog_html = _inject_before_section(blog_html, "Pace & Effort Breakdown", build_aqi_gauge_html(aqi_value))
+        blog_html = _inject_after_section(blog_html, "Run Snapshot", build_aqi_gauge_html(aqi_value))
 
     # Gear affiliate block at end
     blog_html += _build_gear_html(metrics)
@@ -184,6 +181,23 @@ def _inject_before_section(html: str, section_title: str, chart_html: str) -> st
     if idx != -1:
         return html[:idx] + chart_html + html[idx:]
     return html + chart_html
+
+
+def _inject_after_section(html: str, section_title: str, chart_html: str) -> str:
+    """Injects chart HTML after a section's content (before the next <h2>). Falls back to appending."""
+    import re
+    # Find the target <h2> (case-insensitive)
+    pattern = re.compile(r'<h2[^>]*>' + re.escape(section_title) + r'</h2>', re.IGNORECASE)
+    match = pattern.search(html)
+    if not match:
+        return html + chart_html
+    # Find the next <h2> after this section
+    next_h2 = re.search(r'<h2[^>]*>', html[match.end():], re.IGNORECASE)
+    if next_h2:
+        insert_pos = match.end() + next_h2.start()
+    else:
+        insert_pos = len(html)
+    return html[:insert_pos] + chart_html + html[insert_pos:]
 
 
 def _build_gear_html(metrics: dict) -> str:

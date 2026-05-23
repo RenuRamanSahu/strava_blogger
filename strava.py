@@ -72,7 +72,7 @@ async def get_activity_streams(activity_id: int, access_token: str, client: http
     """Fetches distance, altitude, and velocity streams for elevation and pace charting"""
     url = f"https://www.strava.com/api/v3/activities/{activity_id}/streams"
     headers = {'Authorization': f'Bearer {access_token}'}
-    params = {'keys': 'distance,altitude,velocity_smooth', 'key_type': 'distance'}
+    params = {'keys': 'distance,altitude,velocity_smooth,cadence', 'key_type': 'distance'}
     print(f"\U0001f4e4 GET {url} — fetching activity streams")
     response = await client.get(url, headers=headers, params=params)
     print(f"\U0001f4e5 Response {response.status_code} from {url}")
@@ -85,11 +85,12 @@ async def get_activity_streams(activity_id: int, access_token: str, client: http
     distance = streams.get('distance', [])
     altitude = streams.get('altitude', [])
     velocity = streams.get('velocity_smooth', [])
+    cadence = streams.get('cadence', [])
 
     if not distance or not altitude:
         return {}
 
-    return _downsample_streams(distance, altitude, velocity)
+    return _downsample_streams(distance, altitude, velocity, cadence)
 
 
 def _speed_to_pace(speed_ms: float) -> float:
@@ -100,10 +101,11 @@ def _speed_to_pace(speed_ms: float) -> float:
     return min(round(pace, 2), 15.0)
 
 
-def _downsample_streams(distance: list, altitude: list, velocity: list = None, max_points: int = 80) -> dict:
+def _downsample_streams(distance: list, altitude: list, velocity: list = None, cadence: list = None, max_points: int = 80) -> dict:
     """Downsamples stream arrays to max_points for lightweight Chart.js embedding"""
     n = len(distance)
     has_velocity = velocity and len(velocity) == n
+    has_cadence = cadence and len(cadence) == n
 
     if n <= max_points:
         result = {
@@ -112,24 +114,31 @@ def _downsample_streams(distance: list, altitude: list, velocity: list = None, m
         }
         if has_velocity:
             result['pace_min_per_km'] = [_speed_to_pace(v) for v in velocity]
+        if has_cadence:
+            result['cadence_spm'] = [int(c * 2) if c else 0 for c in cadence]
         return result
 
     step = n / max_points
     sampled_dist = []
     sampled_alt = []
     sampled_pace = []
+    sampled_cadence = []
     for i in range(max_points):
         idx = int(i * step)
         sampled_dist.append(round(distance[idx] / 1000, 2))
         sampled_alt.append(round(altitude[idx], 1))
         if has_velocity:
             sampled_pace.append(_speed_to_pace(velocity[idx]))
+        if has_cadence:
+            sampled_cadence.append(int(cadence[idx] * 2) if cadence[idx] else 0)
 
     # Always include the last point
     sampled_dist[-1] = round(distance[-1] / 1000, 2)
     sampled_alt[-1] = round(altitude[-1], 1)
     if has_velocity:
         sampled_pace[-1] = _speed_to_pace(velocity[-1])
+    if has_cadence:
+        sampled_cadence[-1] = int(cadence[-1] * 2) if cadence[-1] else 0
 
     result = {
         'distance_km': sampled_dist,
@@ -137,6 +146,8 @@ def _downsample_streams(distance: list, altitude: list, velocity: list = None, m
     }
     if has_velocity:
         result['pace_min_per_km'] = sampled_pace
+    if has_cadence:
+        result['cadence_spm'] = sampled_cadence
     return result
 
 

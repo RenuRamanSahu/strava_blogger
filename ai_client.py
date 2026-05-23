@@ -2,7 +2,7 @@ import os
 import logging
 import httpx
 from config import GEAR_LINKS, OPENROUTER_API_KEY
-from charts import build_elevation_chart_html, build_pace_chart_html, build_route_segments
+from charts import build_run_chart_html, build_route_segments
 from acwr_gauge import build_acwr_gauge_html
 
 logger = logging.getLogger(__name__)
@@ -142,12 +142,10 @@ def _build_training_load_data(training_data: dict) -> str:
 
 def _inject_charts(blog_html: str, metrics: dict, training_data: dict, elevation_profile: dict) -> str:
     """Deterministically injects charts and gear block into the AI-generated blog HTML"""
-    # Elevation + Pace charts before Workload Intelligence
+    # Combined run chart (elevation + pace + cadence) before Workload Intelligence
     route_charts = ""
     if elevation_profile and elevation_profile.get('distance_km'):
-        route_charts += build_elevation_chart_html(elevation_profile)
-        if elevation_profile.get('pace_min_per_km'):
-            route_charts += build_pace_chart_html(elevation_profile)
+        route_charts = build_run_chart_html(elevation_profile)
     if route_charts:
         blog_html = _inject_before_section(blog_html, "Workload Intelligence", route_charts)
 

@@ -2,14 +2,19 @@ Generate one blog post title for a running activity on renuramansahu.com.
 
 Activity: {name} | {distance_km} km | {duration_mins} min | {elevation_m}m elevation
 
+BLOG EXCERPT (use this to understand what made this run unique):
+{blog_excerpt}
+
 RULES:
 - Return ONLY the title text. No quotes. No explanation.
 - Include the name "Raman"
 - Under 80 characters
-- Be specific to this run's data (distance, terrain, conditions)
+- The title should reflect the most interesting or unique aspect of THIS specific run (e.g. a personal milestone, unusual weather challenge, terrain story, training load insight)
+- Draw from the blog narrative — not just the raw numbers
 - Avoid generic phrases: "A Great Run", "Another Day", "Hitting the Pavement"
 
 GOOD: "Raman's 10K Heat Test: 5:28/km Through 34°C Bangalore"
 GOOD: "8.2 km at Threshold: Raman's ACWR Hits the Sweet Spot"
+GOOD: "Raman Conquers the Hill Loop: Negative Split on 85m Climb"
 BAD: "Raman's Amazing Running Journey Continues"
 BAD: "Another Great Day on the Road for Raman"

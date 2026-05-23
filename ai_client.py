@@ -193,14 +193,22 @@ def _build_gear_html(metrics: dict) -> str:
     )
 
 
-async def generate_blog_title(metrics: dict) -> str:
-    """Uses Llama 3 via OpenRouter/Groq to generate a creative, SEO-friendly blog post title"""
+async def generate_blog_title(metrics: dict, blog_html: str) -> str:
+    """Generates a title based on the completed blog content to capture the run's uniqueness"""
+
+    # Extract a text summary from the blog HTML (strip tags for brevity)
+    import re
+    blog_text = re.sub(r'<[^>]+>', ' ', blog_html)
+    blog_text = re.sub(r'\s+', ' ', blog_text).strip()
+    # Send first ~1500 chars to keep token usage reasonable
+    blog_excerpt = blog_text[:1500]
 
     prompt = _load_prompt("title_prompt.txt").format(
         name=metrics.get('name'),
         distance_km=metrics.get('distance_km'),
         duration_mins=metrics.get('duration_mins'),
         elevation_m=metrics.get('elevation_m'),
+        blog_excerpt=blog_excerpt,
     )
 
     result = await _openrouter_chat(

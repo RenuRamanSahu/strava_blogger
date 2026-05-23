@@ -60,11 +60,11 @@ async def process_pipeline_background(activity_id: int):
             else:
                 print(f"\u26a0\ufe0f Step 6: No polyline data \u2014 skipping map image")
 
-            # 7. Generate AI blog title and content (includes weather + Strava link in blog)
-            post_title = await generate_blog_title(metrics)
-            print(f"\u2705 Step 7a: AI title generated \u2014 {post_title}")
+            # 7. Generate AI blog content, then derive title from the content
             blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
-            print(f"\u2705 Step 7b: Blog content generated ({len(blog_html)} chars)")
+            print(f"\u2705 Step 7a: Blog content generated ({len(blog_html)} chars)")
+            post_title = await generate_blog_title(metrics, blog_html)
+            print(f"\u2705 Step 7b: AI title generated \u2014 {post_title}")
 
             # 8. Upload Content Directly onto renuramansahu.com (with featured image)
             wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
@@ -126,10 +126,10 @@ async def process_pipeline_streaming(activity_id: int):
             else:
                 yield "⚠️ Step 6: No polyline data — skipping map image"
 
-            post_title = await generate_blog_title(metrics)
-            yield f"✅ Step 7a: AI title generated — {post_title}"
             blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
-            yield f"✅ Step 7b: Blog content generated ({len(blog_html)} chars)"
+            yield f"✅ Step 7a: Blog content generated ({len(blog_html)} chars)"
+            post_title = await generate_blog_title(metrics, blog_html)
+            yield f"✅ Step 7b: AI title generated — {post_title}"
 
             wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"

@@ -60,7 +60,7 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
         "suffer_score": data.get("suffer_score"),
         "calories": data.get("calories"),
         "average_cadence": data.get("average_cadence"),
-        "start_date_local": data.get("start_date_local", ""),
+        "start_date_local": _format_local_date(data.get("start_date_local", "")),
         "gear": data.get("gear", {}).get("name", "N/A") if data.get("gear") else "N/A",
         "gear_distance_km": round(data["gear"]["distance"] / 1000) if data.get("gear") and data["gear"].get("distance") else None,
         "polyline": data.get("map", {}).get("summary_polyline", "") if data.get("map") else "",
@@ -91,6 +91,19 @@ async def get_activity_streams(activity_id: int, access_token: str, client: http
         return {}
 
     return _downsample_streams(distance, altitude, velocity, cadence)
+
+
+def _format_local_date(date_str: str) -> str:
+    """Formats Strava's start_date_local (which has a misleading Z suffix) into a clean IST string"""
+    if not date_str:
+        return ""
+    try:
+        # Strip the trailing Z — Strava's local date is already in the activity's timezone
+        clean = date_str.replace("Z", "")
+        dt = datetime.fromisoformat(clean)
+        return dt.strftime("%d %b %Y, %I:%M %p") + " IST"
+    except (ValueError, TypeError):
+        return date_str
 
 
 def _speed_to_pace(speed_ms: float) -> float:

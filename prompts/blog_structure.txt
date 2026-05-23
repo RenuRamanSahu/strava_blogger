@@ -33,6 +33,7 @@ SECTIONS (use these exact <h2> headings):
 ONLY include this section if <route_segments> contains data. Otherwise skip entirely.
 - Narrate the run km-by-km using the segment data
 - Describe how pace responded to elevation changes
+- If cadence data exists per segment: note how cadence shifted on uphills vs flats vs downhills (cadence typically drops on climbs, rises on flats)
 - Identify fastest/slowest segments and explain why (terrain, fatigue, strategy)
 - Note positive/negative splits and what they indicate
 - Read like race commentary — specific, vivid, grounded in data

@@ -184,6 +184,7 @@ def build_route_segments(elevation_profile: dict) -> str:
     distances = elevation_profile.get('distance_km', [])
     altitudes = elevation_profile.get('altitude_m', [])
     paces = elevation_profile.get('pace_min_per_km', [])
+    cadences = elevation_profile.get('cadence_spm', [])
 
     if not distances or not altitudes or not paces:
         return ""
@@ -215,10 +216,19 @@ def build_route_segments(elevation_profile: dict) -> str:
         fastest = min(seg_paces)
         slowest = max(seg_paces)
 
+        # Cadence for this segment (if available)
+        cadence_text = ""
+        if cadences:
+            seg_cadences = [cadences[i] for i in indices if i < len(cadences) and cadences[i] > 0]
+            if seg_cadences:
+                avg_cadence = round(sum(seg_cadences) / len(seg_cadences))
+                cadence_text = f" | cadence {avg_cadence} spm"
+
         segments.append(
             f"           Km {km_mark}: avg pace {pace_min}:{pace_sec:02d}/km | "
             f"elevation {elev_sign}{elev_delta}m ({round(elev_start,1)}m → {round(elev_end,1)}m) | "
             f"range {int(fastest)}:{int((fastest % 1)*60):02d}–{int(slowest)}:{int((slowest % 1)*60):02d}/km"
+            f"{cadence_text}"
         )
 
         km_mark += 1

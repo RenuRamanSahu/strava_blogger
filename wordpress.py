@@ -90,7 +90,13 @@ async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: h
     if "json" not in resp_ct.lower():
         raise RuntimeError(f"WP media upload returned non-JSON ({response.status_code} {resp_ct}) — likely WAF/security plugin interstitial")
 
-    media_id = response.json().get("id")
+    try:
+        payload = response.json()
+    except Exception as e:
+        raise RuntimeError(f"WP media upload JSON parse failed: {e}; body: {response.text[:500]}")
+    if not isinstance(payload, dict) or "id" not in payload:
+        raise RuntimeError(f"WP media upload returned unexpected payload (type={type(payload).__name__}): {str(payload)[:500]}")
+    media_id = payload["id"]
     print(f"\u2705 Media uploaded — ID: {media_id}")
     return media_id
 
@@ -120,8 +126,19 @@ async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncCl
     print(f"\U0001f4e4 POST {endpoint} — publishing blog post '{title}'")
     response = await client.post(endpoint, headers=headers, json=post_data)
     print(f"\U0001f4e5 Response {response.status_code} from {endpoint}")
+    resp_ct = response.headers.get("content-type", "")
+    if response.status_code >= 400 or "json" not in resp_ct.lower():
+        body_preview = response.text[:800] if response.text else ""
+        print(f"\u26a0\ufe0f WP post create non-JSON or error response (content-type='{resp_ct}'): {body_preview}")
     response.raise_for_status()
+    if "json" not in resp_ct.lower():
+        raise RuntimeError(f"WP post create returned non-JSON ({response.status_code} {resp_ct}) — likely WAF interstitial")
 
-    result = response.json()
+    try:
+        result = response.json()
+    except Exception as e:
+        raise RuntimeError(f"WP post create JSON parse failed: {e}; body: {response.text[:500]}")
+    if not isinstance(result, dict) or "id" not in result:
+        raise RuntimeError(f"WP post create returned unexpected payload (type={type(result).__name__}): {str(result)[:500]}")
     print(f"\u2705 Blog published: {result.get('link')}")
     return result

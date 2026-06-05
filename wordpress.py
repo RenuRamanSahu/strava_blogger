@@ -12,23 +12,26 @@ def _wp_auth_headers() -> dict:
 
 async def _get_or_create_category(name: str, client: httpx.AsyncClient) -> int:
     """Looks up a WordPress category by name, creates it if it doesn't exist, returns the ID"""
-    headers = {**_wp_auth_headers(), "Content-Type": "application/json"}
-
-    # Search for existing category
+    # Search for existing category (GET has no body — do NOT send Content-Type, some WAFs return 415)
     search_url = f"{WP_SITE_URL}/wp-json/wp/v2/categories"
     print(f"\U0001f4e4 GET {search_url} — searching for category '{name}'")
-    resp = await client.get(search_url, headers=headers, params={"search": name, "per_page": 100})
+    resp = await client.get(search_url, headers=_wp_auth_headers(), params={"search": name, "per_page": 100})
     print(f"\U0001f4e5 Response {resp.status_code} from {search_url}")
+    if resp.status_code >= 400:
+        print(f"\u26a0\ufe0f WP categories search error body: {resp.text[:500]}")
     resp.raise_for_status()
     for cat in resp.json():
         if cat["name"].lower() == name.lower():
             print(f"\u2705 Category '{name}' found — ID: {cat['id']}")
             return cat["id"]
 
-    # Create if not found
+    # Create if not found (POST needs Content-Type)
+    create_headers = {**_wp_auth_headers(), "Content-Type": "application/json"}
     print(f"\U0001f4e4 POST {search_url} — creating category '{name}'")
-    resp = await client.post(search_url, headers=headers, json={"name": name})
+    resp = await client.post(search_url, headers=create_headers, json={"name": name})
     print(f"\U0001f4e5 Response {resp.status_code} from {search_url}")
+    if resp.status_code >= 400:
+        print(f"\u26a0\ufe0f WP category create error body: {resp.text[:500]}")
     resp.raise_for_status()
     cat_id = resp.json()["id"]
     print(f"\u2705 Category '{name}' created — ID: {cat_id}")

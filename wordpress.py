@@ -41,8 +41,9 @@ async def _get_or_create_category(name: str, client: httpx.AsyncClient) -> int:
 async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: httpx.AsyncClient, content_type: str = "image/png") -> int:
     """Uploads an image to the WordPress media library and returns the media ID.
 
-    Normalizes content-type and filename so WP doesn't reject with 415 due to
-    extension/MIME mismatch or unsupported type.
+    Uses multipart/form-data (what wp-admin itself sends) to maximize compatibility
+    with hosts that block raw-body uploads via WAF/security plugins. Normalizes
+    content-type and filename so WP doesn't reject with 415 on extension/MIME mismatch.
     """
     endpoint = f"{WP_SITE_URL}/wp-json/wp/v2/media"
 
@@ -70,17 +71,19 @@ async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: h
         print(f"\u26a0\ufe0f Renaming '{filename}' \u2192 '{new_filename}' to match content-type '{content_type}'")
         filename = new_filename
 
+    # NOTE: do NOT set Content-Type manually — httpx generates the multipart boundary header
     headers = {
         **_wp_auth_headers(),
-        "Content-Type": content_type,
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Accept": "application/json",
+        "User-Agent": "strava-blogger/1.0 (+https://renuramansahu.com)",
     }
+    files = {"file": (filename, image_bytes, content_type)}
 
-    print(f"\U0001f4e4 POST {endpoint} — uploading media '{filename}' ({len(image_bytes)} bytes, {content_type})")
-    response = await client.post(endpoint, headers=headers, content=image_bytes)
+    print(f"\U0001f4e4 POST {endpoint} — uploading media '{filename}' ({len(image_bytes)} bytes, {content_type}) as multipart")
+    response = await client.post(endpoint, headers=headers, files=files)
     print(f"\U0001f4e5 Response {response.status_code} from {endpoint}")
     if response.status_code >= 400:
-        body_preview = response.text[:500] if response.text else ""
+        body_preview = response.text[:800] if response.text else ""
         print(f"\u26a0\ufe0f WP media upload error body: {body_preview}")
     response.raise_for_status()
 

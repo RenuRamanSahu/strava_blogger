@@ -42,10 +42,14 @@ async def process_pipeline_background(activity_id: int):
             weather = {}
             start_latlng = metrics.get("start_latlng", [])
             if start_latlng and len(start_latlng) == 2:
-                weather = await get_weather_for_activity(
-                    start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
-                )
-                print(f"\u2705 Step 5: Weather fetched \u2014 {weather.get('summary')}")
+                try:
+                    weather = await get_weather_for_activity(
+                        start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
+                    )
+                    print(f"\u2705 Step 5: Weather fetched \u2014 {weather.get('summary')}")
+                except Exception as weather_err:
+                    weather = {}
+                    print(f"\u26a0\ufe0f Step 5: Weather pipeline failed \u2014 {weather_err}; continuing without weather")
             else:
                 print(f"\u26a0\ufe0f Step 5: No location data \u2014 skipping weather")
 
@@ -53,10 +57,13 @@ async def process_pipeline_background(activity_id: int):
             featured_media_id = None
             polyline = metrics.get("polyline", "")
             if polyline:
-                image_bytes = generate_route_image(polyline, metrics, weather)
-                filename = f"run-map-{activity_id}.png"
-                featured_media_id = await upload_media_to_wordpress(image_bytes, filename, client)
-                print(f"\u2705 Step 6: Route map generated and uploaded \u2014 media ID {featured_media_id}")
+                try:
+                    image_bytes = generate_route_image(polyline, metrics, weather)
+                    filename = f"run-map-{activity_id}.png"
+                    featured_media_id = await upload_media_to_wordpress(image_bytes, filename, client)
+                    print(f"\u2705 Step 6: Route map generated and uploaded \u2014 media ID {featured_media_id}")
+                except Exception as map_err:
+                    print(f"\u26a0\ufe0f Step 6: Route map generation/upload failed \u2014 {map_err}; continuing without featured image")
             else:
                 print(f"\u26a0\ufe0f Step 6: No polyline data \u2014 skipping map image")
 
@@ -109,20 +116,27 @@ async def process_pipeline_streaming(activity_id: int):
             weather = {}
             start_latlng = metrics.get("start_latlng", [])
             if start_latlng and len(start_latlng) == 2:
-                weather = await get_weather_for_activity(
-                    start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
-                )
-                yield f"✅ Step 5: Weather fetched — {weather.get('summary')}"
+                try:
+                    weather = await get_weather_for_activity(
+                        start_latlng[0], start_latlng[1], metrics["start_date_local_raw"], client
+                    )
+                    yield f"✅ Step 5: Weather fetched — {weather.get('summary')}"
+                except Exception as weather_err:
+                    weather = {}
+                    yield f"⚠️ Step 5: Weather pipeline failed — {weather_err}; continuing without weather"
             else:
                 yield "⚠️ Step 5: No location data — skipping weather"
 
             featured_media_id = None
             polyline = metrics.get("polyline", "")
             if polyline:
-                image_bytes = generate_route_image(polyline, metrics, weather)
-                filename = f"run-map-{activity_id}.png"
-                featured_media_id = await upload_media_to_wordpress(image_bytes, filename, client)
-                yield f"✅ Step 6: Route map generated and uploaded — media ID {featured_media_id}"
+                try:
+                    image_bytes = generate_route_image(polyline, metrics, weather)
+                    filename = f"run-map-{activity_id}.png"
+                    featured_media_id = await upload_media_to_wordpress(image_bytes, filename, client)
+                    yield f"✅ Step 6: Route map generated and uploaded — media ID {featured_media_id}"
+                except Exception as map_err:
+                    yield f"⚠️ Step 6: Route map generation/upload failed — {map_err}; continuing without featured image"
             else:
                 yield "⚠️ Step 6: No polyline data — skipping map image"
 

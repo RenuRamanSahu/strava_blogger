@@ -45,19 +45,23 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
         "timezone": "auto",
     }
 
-    # Fetch weather and AQI concurrently
+    # Fetch weather and AQI concurrently (with retries on transient upstream errors)
     print(f"\U0001f4e4 Fetching weather + AQI for ({lat}, {lng}) on {date_str} hour {hour}")
-    weather_task = client.get(weather_url, params=weather_params)
-    aqi_task = client.get(aqi_url, params=aqi_params)
+    weather_task = _get_with_retry(client, weather_url, weather_params, label="Weather")
+    aqi_task = _get_with_retry(client, aqi_url, aqi_params, label="AQI")
     weather_resp, aqi_resp = await asyncio.gather(weather_task, aqi_task, return_exceptions=True)
 
-    # Process weather response
-    if isinstance(weather_resp, Exception):
+    # Process weather response — degrade gracefully on failure instead of raising
+    if isinstance(weather_resp, Exception) or weather_resp is None:
         print(f"\u26a0\ufe0f Weather fetch failed: {weather_resp}")
         return _empty_weather()
     print(f"\U0001f4e5 Weather response {weather_resp.status_code}")
-    weather_resp.raise_for_status()
-    data = weather_resp.json()
+    try:
+        weather_resp.raise_for_status()
+        data = weather_resp.json()
+    except Exception as e:
+        print(f"\u26a0\ufe0f Weather parse failed: {e}")
+        return _empty_weather()
 
     hourly = data.get("hourly", {})
     idx = min(hour, len(hourly.get("temperature_2m", [])) - 1)
@@ -73,7 +77,7 @@ async def get_weather_for_activity(lat: float, lng: float, start_time: str, clie
 
     # Process AQI response
     aqi_val, pm25, pm10, aqi_cat = None, None, None, None
-    if not isinstance(aqi_resp, Exception):
+    if not isinstance(aqi_resp, Exception) and aqi_resp is not None:
         print(f"\U0001f4e5 AQI response {aqi_resp.status_code}")
         try:
             aqi_resp.raise_for_status()
@@ -154,3 +158,30 @@ def _empty_weather() -> dict:
         "pm10": None,
         "summary": "N/A",
     }
+
+
+async def _get_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict,
+    label: str,
+    max_attempts: int = 3,
+    backoff_seconds: float = 1.0,
+) -> httpx.Response | None:
+    """GET with retries on transient errors (5xx, 429, network failures). Returns None if all attempts fail."""
+    last_exc: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = await client.get(url, params=params)
+            if resp.status_code < 500 and resp.status_code != 429:
+                return resp
+            print(f"\u26a0\ufe0f {label} attempt {attempt}/{max_attempts} got {resp.status_code}, retrying...")
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            last_exc = e
+            print(f"\u26a0\ufe0f {label} attempt {attempt}/{max_attempts} network error: {e}")
+        if attempt < max_attempts:
+            await asyncio.sleep(backoff_seconds * (2 ** (attempt - 1)))
+    if last_exc:
+        print(f"\u26a0\ufe0f {label} exhausted retries: {last_exc}")
+    return None
+

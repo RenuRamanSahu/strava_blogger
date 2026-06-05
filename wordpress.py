@@ -1,6 +1,10 @@
 import base64
+import io
 import httpx
+from PIL import Image
 from config import WP_USERNAME, WP_APP_PASSWORD, WP_SITE_URL
+
+MAX_MEDIA_BYTES = 1_000_000  # 1 MB hard cap for WP media uploads
 
 
 def _wp_auth_headers() -> dict:
@@ -10,6 +14,56 @@ def _wp_auth_headers() -> dict:
     return {"Authorization": f"Basic {base64_credentials}"}
 
 
+def _shrink_under_1mb(image_bytes: bytes, filename: str, content_type: str) -> tuple[bytes, str, str]:
+    """If image is over MAX_MEDIA_BYTES, re-encode as JPEG with decreasing quality until it fits.
+    Returns (bytes, filename, content_type). Animated GIFs are returned unchanged (re-encoding would break them).
+    """
+    if len(image_bytes) <= MAX_MEDIA_BYTES:
+        return image_bytes, filename, content_type
+    if content_type == "image/gif":
+        print(f"\u26a0\ufe0f Image '{filename}' is {len(image_bytes)} bytes (>1MB) but is GIF — not re-encoding")
+        return image_bytes, filename, content_type
+
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+    except Exception as e:
+        print(f"\u26a0\ufe0f Could not open image '{filename}' for resize ({e}) — sending original")
+        return image_bytes, filename, content_type
+
+    # JPEG doesn't support alpha; flatten RGBA onto white
+    if img.mode in ("RGBA", "LA", "P"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        if img.mode == "P":
+            img = img.convert("RGBA")
+        background.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
+        img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+
+    original_size = len(image_bytes)
+    # First try quality steps; if still too big, downscale and try again
+    for max_dim in (img.size[0], 1600, 1200, 900):
+        if max_dim < img.size[0]:
+            ratio = max_dim / img.size[0]
+            new_size = (max_dim, int(img.size[1] * ratio))
+            img_resized = img.resize(new_size, Image.LANCZOS)
+        else:
+            img_resized = img
+        for quality in (85, 75, 65, 55, 45):
+            buf = io.BytesIO()
+            img_resized.save(buf, format="JPEG", quality=quality, optimize=True, progressive=True)
+            data = buf.getvalue()
+            if len(data) <= MAX_MEDIA_BYTES:
+                new_name = (filename.rsplit(".", 1)[0] if "." in filename else filename) + ".jpg"
+                print(f"\u2705 Resized '{filename}' from {original_size} → {len(data)} bytes (≤{img_resized.size}, q={quality})")
+                return data, new_name, "image/jpeg"
+
+    # Fallback: return smallest version we managed even if still over (>1MB but better than nothing)
+    print(f"\u26a0\ufe0f Could not shrink '{filename}' below 1MB — sending best-effort {len(data)} bytes")
+    new_name = (filename.rsplit(".", 1)[0] if "." in filename else filename) + ".jpg"
+    return data, new_name, "image/jpeg"
+
+
 async def _get_or_create_category(name: str, client: httpx.AsyncClient) -> int:
     """Looks up a WordPress category by name, creates it if it doesn't exist, returns the ID"""
     # Search for existing category (GET has no body — do NOT send Content-Type, some WAFs return 415)
@@ -17,11 +71,20 @@ async def _get_or_create_category(name: str, client: httpx.AsyncClient) -> int:
     print(f"\U0001f4e4 GET {search_url} — searching for category '{name}'")
     resp = await client.get(search_url, headers=_wp_auth_headers(), params={"search": name, "per_page": 100})
     print(f"\U0001f4e5 Response {resp.status_code} from {search_url}")
-    if resp.status_code >= 400:
-        print(f"\u26a0\ufe0f WP categories search error body: {resp.text[:500]}")
+    resp_ct = resp.headers.get("content-type", "")
+    if resp.status_code >= 400 or "json" not in resp_ct.lower():
+        print(f"\u26a0\ufe0f WP categories search non-JSON or error (content-type='{resp_ct}'): {resp.text[:800]}")
     resp.raise_for_status()
-    for cat in resp.json():
-        if cat["name"].lower() == name.lower():
+    if "json" not in resp_ct.lower():
+        raise RuntimeError(f"WP categories search returned non-JSON ({resp.status_code} {resp_ct}) — likely WAF interstitial")
+    try:
+        cats = resp.json()
+    except Exception as e:
+        raise RuntimeError(f"WP categories search JSON parse failed: {e}; body: {resp.text[:500]}")
+    if not isinstance(cats, list):
+        raise RuntimeError(f"WP categories search returned non-list payload (type={type(cats).__name__}): {str(cats)[:500]}")
+    for cat in cats:
+        if isinstance(cat, dict) and cat.get("name", "").lower() == name.lower():
             print(f"\u2705 Category '{name}' found — ID: {cat['id']}")
             return cat["id"]
 
@@ -30,10 +93,19 @@ async def _get_or_create_category(name: str, client: httpx.AsyncClient) -> int:
     print(f"\U0001f4e4 POST {search_url} — creating category '{name}'")
     resp = await client.post(search_url, headers=create_headers, json={"name": name})
     print(f"\U0001f4e5 Response {resp.status_code} from {search_url}")
-    if resp.status_code >= 400:
-        print(f"\u26a0\ufe0f WP category create error body: {resp.text[:500]}")
+    resp_ct = resp.headers.get("content-type", "")
+    if resp.status_code >= 400 or "json" not in resp_ct.lower():
+        print(f"\u26a0\ufe0f WP category create non-JSON or error (content-type='{resp_ct}'): {resp.text[:800]}")
     resp.raise_for_status()
-    cat_id = resp.json()["id"]
+    if "json" not in resp_ct.lower():
+        raise RuntimeError(f"WP category create returned non-JSON ({resp.status_code} {resp_ct}) — likely WAF interstitial")
+    try:
+        created = resp.json()
+    except Exception as e:
+        raise RuntimeError(f"WP category create JSON parse failed: {e}; body: {resp.text[:500]}")
+    if not isinstance(created, dict) or "id" not in created:
+        raise RuntimeError(f"WP category create returned unexpected payload (type={type(created).__name__}): {str(created)[:500]}")
+    cat_id = created["id"]
     print(f"\u2705 Category '{name}' created — ID: {cat_id}")
     return cat_id
 
@@ -70,6 +142,9 @@ async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: h
         new_filename = (filename.rsplit(".", 1)[0] if "." in filename else filename) + new_ext
         print(f"\u26a0\ufe0f Renaming '{filename}' \u2192 '{new_filename}' to match content-type '{content_type}'")
         filename = new_filename
+
+    # Enforce 1MB cap (re-encodes oversized images as JPEG with adaptive quality/dimensions)
+    image_bytes, filename, content_type = _shrink_under_1mb(image_bytes, filename, content_type)
 
     # NOTE: do NOT set Content-Type manually — httpx generates the multipart boundary header
     headers = {

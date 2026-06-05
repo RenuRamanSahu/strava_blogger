@@ -14,7 +14,13 @@ from config import WP_SITE_URL
 async def process_pipeline_background(activity_id: int):
     """Master background execution link connecting data fetching to publishing"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; strava-blogger/1.0; +https://renuramansahu.com)",
+                "Accept": "application/json, */*",
+            },
+            timeout=60,
+        ) as client:
             # 1. Fetch Working Strava Authorization Token
             access_token = await get_strava_access_token(client)
             print(f"\u2705 Step 1: Strava token acquired")
@@ -94,7 +100,13 @@ async def process_pipeline_background(activity_id: int):
 async def process_pipeline_streaming(activity_id: int):
     """Same pipeline as process_pipeline_background, but yields progress messages for SSE streaming"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; strava-blogger/1.0; +https://renuramansahu.com)",
+                "Accept": "application/json, */*",
+            },
+            timeout=60,
+        ) as client:
             access_token = await get_strava_access_token(client)
             yield "✅ Step 1: Strava token acquired"
 

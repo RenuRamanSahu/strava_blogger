@@ -82,10 +82,13 @@ async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: h
     print(f"\U0001f4e4 POST {endpoint} — uploading media '{filename}' ({len(image_bytes)} bytes, {content_type}) as multipart")
     response = await client.post(endpoint, headers=headers, files=files)
     print(f"\U0001f4e5 Response {response.status_code} from {endpoint}")
-    if response.status_code >= 400:
+    resp_ct = response.headers.get("content-type", "")
+    if response.status_code >= 400 or "json" not in resp_ct.lower():
         body_preview = response.text[:800] if response.text else ""
-        print(f"\u26a0\ufe0f WP media upload error body: {body_preview}")
+        print(f"\u26a0\ufe0f WP media upload non-JSON response (content-type='{resp_ct}'): {body_preview}")
     response.raise_for_status()
+    if "json" not in resp_ct.lower():
+        raise RuntimeError(f"WP media upload returned non-JSON ({response.status_code} {resp_ct}) — likely WAF/security plugin interstitial")
 
     media_id = response.json().get("id")
     print(f"\u2705 Media uploaded — ID: {media_id}")

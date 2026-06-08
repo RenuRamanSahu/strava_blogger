@@ -92,25 +92,25 @@ async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: 
 
 async def generate_user_note_summary(user_note: str) -> str:
     """Summarizes the runner's own activity note into 1–2 short sentences (<=180 chars)
-    suitable for embedding in the updated Strava description. Returns "" when the note is empty.
+    suitable for embedding in the updated Strava description. Always AI-rewritten —
+    never returns the original text verbatim. Returns "" when the note is empty.
     """
     note = (user_note or "").strip()
     if not note:
         return ""
-    if len(note) <= 180:
-        # Short enough to use verbatim — collapse newlines
-        return " ".join(note.split())
     system = (
-        "You summarize a runner's first-person activity note into 1–2 short sentences "
-        "(<=180 characters total) for an athlete's Strava description. Keep their voice, "
-        "first person if they used it, no hashtags or emojis. Plain text only."
+        "You rewrite a runner's first-person activity note into a polished 1–2 sentence "
+        "summary (<=180 characters total) for the athlete's Strava description. "
+        "REWRITE — do not echo the input verbatim. Keep first-person voice if the original "
+        "used it, otherwise third person about 'Raman'. Tighten language, fix grammar, "
+        "drop filler. No hashtags, no emojis, no quotes, no markdown. Plain text only."
     )
-    user = f"Note:\n{note}\n\nReturn ONLY the summary text, nothing else."
+    user = f"Original note:\n{note}\n\nReturn ONLY the rewritten summary, nothing else."
     try:
-        summary = await _openrouter_chat(system, user, temperature=0.3, role="analysis")
+        summary = await _openrouter_chat(system, user, temperature=0.4, role="analysis")
     except Exception as e:
         logger.warning(f"User note summarization failed: {e}; truncating verbatim instead")
-        return note[:177].rstrip() + "..."
+        return note[:177].rstrip() + "..." if len(note) > 180 else note
     summary = " ".join(summary.split()).strip().strip('"').strip("'")
     if len(summary) > 200:
         summary = summary[:197].rstrip() + "..."

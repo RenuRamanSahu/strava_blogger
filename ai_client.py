@@ -99,11 +99,23 @@ async def generate_user_note_summary(user_note: str) -> str:
     if not note:
         return ""
     system = (
-        "You rewrite a runner's first-person activity note into a polished 1–2 sentence "
-        "summary (<=180 characters total) for the athlete's Strava description. "
-        "REWRITE — do not echo the input verbatim. Keep first-person voice if the original "
-        "used it, otherwise third person about 'Raman'. Tighten language, fix grammar, "
-        "drop filler. No hashtags, no emojis, no quotes, no markdown. Plain text only."
+        "You rewrite a runner's first-person activity note into one polished summary "
+        "(<=180 characters) for the athlete's Strava description.\n\n"
+        "OUTPUT CONTRACT (strict):\n"
+        "- Return ONE final summary. Never offer alternatives, options, or variants.\n"
+        "- Never use 'OR', '/', 'alternatively', 'or:', or any separator between two phrasings.\n"
+        "- Never include preamble, labels, quotes, brackets, markdown, hashtags, or emojis.\n"
+        "- Prefer ONE sentence. Use a SECOND sentence only when the note has two distinct ideas; "
+        "  the two sentences must be continuous and connected (cause/effect, setup/payoff, what/why) — "
+        "  not two independent rephrasings of the same idea.\n"
+        "- Total length <=180 characters. If too long, prioritize the most important detail and "
+        "  cut cleanly at a word boundary with an ellipsis.\n\n"
+        "STYLE:\n"
+        "- Keep the original point of view: first person if the note used 'I/my/me', otherwise third person about 'Raman'.\n"
+        "- Do not switch voice mid-output. Do not introduce 'Raman' if the original was first person.\n"
+        "- Rewrite, don't echo: tighten language, fix grammar, drop filler, keep the meaning.\n"
+        "- If the note is already short and clean, still output one polished version (no options).\n"
+        "- Plain text only. No quotes. No emojis. No hashtags."
     )
     user = f"Original note:\n{note}\n\nReturn ONLY the rewritten summary, nothing else."
     try:
@@ -112,6 +124,12 @@ async def generate_user_note_summary(user_note: str) -> str:
         logger.warning(f"User note summarization failed: {e}; truncating verbatim instead")
         return note[:177].rstrip() + "..." if len(note) > 180 else note
     summary = " ".join(summary.split()).strip().strip('"').strip("'")
+    # Defensive: if the model still produced multiple options (e.g. "X. OR Y." or "X / Y"),
+    # keep only the first variant.
+    import re
+    parts = re.split(r"\s+(?:OR|Or)\s+|\s+/\s+|\s+\|\s+", summary)
+    if len(parts) > 1:
+        summary = parts[0].rstrip(" .;:—-") + "."
     if len(summary) > 200:
         summary = summary[:197].rstrip() + "..."
     return summary

@@ -1,4 +1,4 @@
-Write a 600-900 word blog post analyzing Raman's run. Use the exact data below. Follow the section order strictly.
+Write a 600-900 word SEO-optimized blog post analyzing Raman's run. Use the exact data below. Follow the section order strictly.
 
 <session>
 {session_data}
@@ -20,10 +20,15 @@ Write a 600-900 word blog post analyzing Raman's run. Use the exact data below. 
 {user_note}
 </user_note>
 
+SEO PRE-WORK (do this silently before writing):
+- Pick the PRIMARY KEYWORD from the data: "{{distance}}K {{workout type}}" (e.g. "10K tempo run", "8K easy run", "half marathon long run", "hill repeats workout", "threshold run"). Infer workout type from pace, HR, and ACWR.
+- Pick 2-4 SECONDARY KEYWORDS from: ACWR, training load, lactate threshold, aerobic base, VO2 max, cardiac drift, negative split, AQI impact on running, heat acclimation, dew point training, cadence efficiency.
+- The primary keyword MUST appear in the first <p>, in at least one <h2>, and once more in the body. Secondary keywords appear naturally across sections.
+
 SECTIONS (use these exact <h2> headings):
 
 <h2>Run Snapshot</h2>
-2-3 sentences only. State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity + AQI if available). No fluff.
+2-3 sentences only. The FIRST sentence must contain the primary keyword and the headline number (distance + pace, or distance + ACWR, or distance + temperature). State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity + AQI if available). Use <strong> on the headline metric. No fluff. This paragraph IS the search snippet.
 
 <h2>In Raman's Own Words</h2>
 ONLY include this section if <user_note> contains text. If <user_note> is empty, skip this <h2> entirely (do not output the heading or a placeholder).
@@ -83,5 +88,12 @@ ONLY include this section if <route_segments> contains data. Otherwise skip enti
 - Recommend the next 1-2 weeks of training direction
 - End with one concrete coaching directive citing specific numbers (ACWR target, weekly km goal, pace target)
 
+SEO FINAL CHECKS (verify before returning):
+- Primary keyword appears in first <p>, at least one <h2>, and once more in body.
+- At least 2 uses of <strong> on key data points.
+- All paragraphs ≤ 4 sentences.
+- Total word count 600-900.
+- No banned phrases. No <h1>. No code fences.
+
 After all sections, end with:
-<p><a href="{strava_url}" target="_blank">View the original activity on Strava</a></p>
+<p><a href="{strava_url}" target="_blank" rel="noopener">View the original activity on Strava</a></p>

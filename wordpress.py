@@ -176,8 +176,12 @@ async def upload_media_to_wordpress(image_bytes: bytes, filename: str, client: h
     return media_id
 
 
-async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncClient, featured_media_id: int = None):
-    """Pushes the generated text payload directly to your WordPress backend"""
+async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncClient, featured_media_id: int = None, excerpt: str = ""):
+    """Pushes the generated text payload directly to your WordPress backend.
+
+    `excerpt` is used as the post excerpt so Yoast/Rank Math/Google use it as the
+    meta description instead of auto-truncating the first paragraph.
+    """
     endpoint = f"{WP_SITE_URL}/wp-json/wp/v2/posts"
 
     headers = {
@@ -197,6 +201,9 @@ async def post_to_wordpress(title: str, html_content: str, client: httpx.AsyncCl
 
     if featured_media_id:
         post_data["featured_media"] = featured_media_id
+
+    if excerpt:
+        post_data["excerpt"] = excerpt
 
     print(f"\U0001f4e4 POST {endpoint} — publishing blog post '{title}'")
     response = await client.post(endpoint, headers=headers, json=post_data)

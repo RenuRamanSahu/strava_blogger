@@ -4,7 +4,7 @@ from strava import (
     get_recent_activities, compute_acwr_and_health, build_strava_description,
     update_strava_description, extract_user_note,
 )
-from ai_client import generate_blog_with_ai, generate_blog_title, generate_next_run_advice, generate_user_note_summary
+from ai_client import generate_blog_with_ai, generate_blog_title, generate_next_run_advice, generate_user_note_summary, generate_meta_description
 from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
@@ -117,9 +117,16 @@ async def process_pipeline_background(activity_id: int):
             if not post_title:
                 post_title = metrics.get("name") or f"Run — Activity {activity_id}"
 
+            meta_description = ""
+            try:
+                meta_description = await generate_meta_description(post_title, blog_html, metrics)
+                print(f"\u2705 Step 7c: Meta description generated ({len(meta_description)} chars)")
+            except Exception as e:
+                print(f"\u26a0\ufe0f Step 7c: Meta description generation failed \u2014 {e}; WP will auto-truncate first paragraph")
+
             # 8. Upload Content Directly onto renuramansahu.com (with featured image)
             # HARD STOP: this is the only step that fails the whole pipeline.
-            wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
+            wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id, excerpt=meta_description)
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             print(f"\u2705 Step 8: Blog published \u2014 {blog_url}")
 
@@ -245,8 +252,15 @@ async def process_pipeline_streaming(activity_id: int):
             if not post_title:
                 post_title = metrics.get("name") or f"Run — Activity {activity_id}"
 
+            meta_description = ""
+            try:
+                meta_description = await generate_meta_description(post_title, blog_html, metrics)
+                yield f"\u2705 Step 7c: Meta description generated ({len(meta_description)} chars)"
+            except Exception as e:
+                yield f"\u26a0\ufe0f Step 7c: Meta description generation failed \u2014 {e}; WP will auto-truncate first paragraph"
+
             # HARD STOP: only Step 8 fails the whole pipeline.
-            wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id)
+            wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id, excerpt=meta_description)
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             yield f"✅ Step 8: Blog published — {blog_url}"
 

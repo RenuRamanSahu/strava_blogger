@@ -1,20 +1,36 @@
-Generate one blog post title for a running activity on renuramansahu.com.
+Generate one SEO-optimized blog post title for a running activity on renuramansahu.com.
 
 Activity: {name} | {distance_km} km | {duration_mins} min | {elevation_m}m elevation
 
 BLOG EXCERPT (use this to understand what made this run unique):
 {blog_excerpt}
 
-RULES:
-- Return ONLY the title text. No quotes. No explanation.
-- Include the name "Raman"
-- Under 80 characters
-- The title should reflect the most interesting or unique aspect of THIS specific run (e.g. a personal milestone, unusual weather challenge, terrain story, training load insight)
-- Draw from the blog narrative — not just the raw numbers
-- Avoid generic phrases: "A Great Run", "Another Day", "Hitting the Pavement"
+FORMAT (strict): "Main Title: Subtitle"
+- Exactly one colon separating Main Title and Subtitle (colon followed by a single space).
+- Main Title: punchy, high-intent, 3-6 words, includes the PRIMARY keyword phrase (e.g. distance + workout type: "10K Tempo Run", "Half Marathon Long Run", "Hill Repeats", "Threshold Effort", "Easy Recovery Run").
+- Subtitle: descriptive, 5-9 words, includes 1-2 SECONDARY keywords (pace in min:sec/km, HR zone, temperature, elevation, ACWR, training load, terrain) AND the runner name "Raman".
+- Total length: 50-65 characters (Google SERP truncates around 60; stay under 65).
+- Title Case in BOTH halves: capitalize the first letter of every significant word.
 
-GOOD: "Raman's 10K Heat Test: 5:28/km Through 34°C Bangalore"
-GOOD: "8.2 km at Threshold: Raman's ACWR Hits the Sweet Spot"
-GOOD: "Raman Conquers the Hill Loop: Negative Split on 85m Climb"
-BAD: "Raman's Amazing Running Journey Continues"
-BAD: "Another Great Day on the Road for Raman"
+SEO RULES:
+- Front-load the strongest searchable keyword in the Main Title (distance + workout type beats vague descriptors).
+- Use numerals wherever possible (km, °C, pace, bpm, %, ACWR value). Numerals outperform spelled-out numbers in search snippets.
+- The exact word "Raman" MUST appear once (in either half, not both).
+- No clickbait, no questions, no "How I…", no ellipses, no emojis, no hashtags, no quotes around the title.
+- Avoid stop-word-heavy phrasing in the Main Title ("A Day Running The 10K").
+- Avoid generic filler: "A Great Run", "Another Day", "Hitting the Pavement", "Crushing It", "Journey", "Adventure".
+- Draw the unique angle from the blog narrative — milestone, weather, terrain, ACWR insight, pacing strategy — not just raw distance.
+
+RETURN: Only the title text, exactly in "Main Title: Subtitle" form. No surrounding quotes, no explanation, no prefix or suffix.
+
+GOOD EXAMPLES:
+10K Heat Test: Raman Holds 5:28/km Through 34°C Bangalore
+Half Marathon Long Run: Raman Hits 1.18 ACWR Sweet Spot
+Hill Repeats 8.2K: Raman's Negative Split on 85m Climb
+Threshold 6K Tempo: Raman's 162 bpm Aerobic Ceiling at 5:34/km
+
+BAD EXAMPLES:
+Raman's Amazing Running Journey Continues
+Another Great Day on the Road for Raman
+How I Ran 10K Today (And What I Learned)
+"Raman Conquers The Hill Loop": A Story of Grit

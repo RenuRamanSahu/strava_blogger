@@ -296,3 +296,45 @@ async def generate_next_run_advice(metrics: dict, training_data: dict) -> str:
         role="analysis",
     )
     return result.strip()
+
+
+async def generate_meta_description(post_title: str, blog_html: str, metrics: dict) -> str:
+    """Generates a 140–160 character SEO meta description for the blog post.
+
+    Used as the WordPress `excerpt` so Yoast/Rank Math/Google use it verbatim
+    instead of auto-truncating the first paragraph. Returns plain text only.
+    """
+    import re
+    text = re.sub(r"<[^>]+>", " ", blog_html or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    excerpt_source = text[:1500]
+
+    system = (
+        "You write SEO meta descriptions for running blog posts. "
+        "Strict requirements: 140–160 characters total (count spaces). "
+        "Plain text only — no HTML, no quotes, no emojis, no hashtags, no markdown. "
+        "Third person about 'Raman'. Front-load the primary keyword (distance + workout type). "
+        "Include 1–2 concrete numbers (pace, HR, ACWR, distance, or temperature). "
+        "End with a benefit-driven hook or insight, not a generic 'read more'. "
+        "Return ONLY the description text — no prefix, no label, no surrounding quotes."
+    )
+    user = (
+        f"Post title: {post_title}\n"
+        f"Distance: {metrics.get('distance_km')} km | Pace: {metrics.get('average_pace')} /km | "
+        f"HR: {metrics.get('average_heartrate', 'N/A')} bpm\n\n"
+        f"Blog excerpt:\n{excerpt_source}\n\n"
+        "Write the meta description now (140–160 characters)."
+    )
+    try:
+        result = await _openrouter_chat(system, user, temperature=0.4, role="writing")
+    except Exception as e:
+        logger.warning(f"Meta description generation failed: {e}; falling back to truncated first paragraph")
+        return excerpt_source[:157].rstrip() + "..." if excerpt_source else ""
+    desc = " ".join(result.split()).strip().strip('"').strip("'")
+    # Enforce hard cap; if model overshoots, trim cleanly at last word boundary.
+    if len(desc) > 160:
+        cut = desc[:160]
+        if " " in cut:
+            cut = cut.rsplit(" ", 1)[0]
+        desc = cut.rstrip(" ,;:.—-") + "..."
+    return desc

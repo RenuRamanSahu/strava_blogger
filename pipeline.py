@@ -2,9 +2,9 @@ import httpx
 from strava import (
     get_strava_access_token, get_activity_details, get_activity_streams,
     get_recent_activities, compute_acwr_and_health, build_strava_description,
-    update_strava_description,
+    update_strava_description, extract_user_note,
 )
-from ai_client import generate_blog_with_ai, generate_blog_title, generate_next_run_advice
+from ai_client import generate_blog_with_ai, generate_blog_title, generate_next_run_advice, generate_user_note_summary
 from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
@@ -96,9 +96,12 @@ async def process_pipeline_background(activity_id: int):
                 print(f"\u26a0\ufe0f Step 6: No polyline data \u2014 skipping map image")
 
             # 7. Generate AI blog content, then derive title from the content
+            user_note = extract_user_note(metrics.get("user_description", ""))
+            if user_note:
+                print(f"✅ Step 6b: User note detected ({len(user_note)} chars)")
             blog_html = ""
             try:
-                blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
+                blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile, user_note=user_note)
                 print(f"\u2705 Step 7a: Blog content generated ({len(blog_html)} chars)")
             except Exception as e:
                 print(f"\u26a0\ufe0f Step 7a: AI blog generation failed \u2014 {e}; using fallback summary")
@@ -222,8 +225,11 @@ async def process_pipeline_streaming(activity_id: int):
                 yield "⚠️ Step 6: No polyline data — skipping map image"
 
             blog_html = ""
+            user_note = extract_user_note(metrics.get("user_description", ""))
+            if user_note:
+                yield f"✅ Step 6b: User note detected ({len(user_note)} chars)"
             try:
-                blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile)
+                blog_html = await generate_blog_with_ai(metrics, training_data, strava_url, weather, elevation_profile, user_note=user_note)
                 yield f"✅ Step 7a: Blog content generated ({len(blog_html)} chars)"
             except Exception as e:
                 yield f"⚠️ Step 7a: AI blog generation failed — {e}; using fallback summary"
@@ -251,9 +257,17 @@ async def process_pipeline_streaming(activity_id: int):
             except Exception as e:
                 yield f"⚠️ Step 9a: Next run advice generation failed — {e}; skipping advice"
 
+            note_summary = ""
+            if user_note:
+                try:
+                    note_summary = await generate_user_note_summary(user_note)
+                    yield f"✅ Step 9a2: User note summarized — {note_summary}"
+                except Exception as e:
+                    yield f"⚠️ Step 9a2: User note summarization failed — {e}; skipping note in Strava description"
+
             if access_token:
                 try:
-                    description = build_strava_description(metrics, training_data, blog_url, next_run_advice, weather)
+                    description = build_strava_description(metrics, training_data, blog_url, next_run_advice, weather, note_summary=note_summary)
                     await update_strava_description(activity_id, access_token, description, client)
                     yield "✅ Step 9b: Strava description updated"
                 except Exception as e:
@@ -274,6 +288,7 @@ def _ensure_metrics_defaults(metrics: dict, activity_id: int) -> dict:
     metrics.setdefault("start_latlng", [])
     metrics.setdefault("polyline", "")
     metrics.setdefault("start_date_local_raw", "")
+    metrics.setdefault("user_description", "")
     return metrics
 
 

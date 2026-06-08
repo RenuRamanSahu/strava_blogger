@@ -1,0 +1,132 @@
+{
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\acwr_gauge.py": {
+    "mtime": 1779466936.564255,
+    "ast_hash": "b21588216a55449bef1b1abb099e1256",
+    "semantic_hash": "b21588216a55449bef1b1abb099e1256"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\ai_client.py": {
+    "mtime": 1780635763.5985956,
+    "ast_hash": "ed8c0f8540696c2a84c9e5e41df582c6",
+    "semantic_hash": "ed8c0f8540696c2a84c9e5e41df582c6"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\app.py": {
+    "mtime": 1779454827.483962,
+    "ast_hash": "fa40f6835ee3a8f83491433211ed8a27",
+    "semantic_hash": "fa40f6835ee3a8f83491433211ed8a27"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\aqi_gauge.py": {
+    "mtime": 1780635763.6005983,
+    "ast_hash": "507fcff5eb8e16d600c1cbba9012d9be",
+    "semantic_hash": "507fcff5eb8e16d600c1cbba9012d9be"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\charts.py": {
+    "mtime": 1779505586.0154102,
+    "ast_hash": "85d9405ce9a21eb5796b3dcba78140f5",
+    "semantic_hash": "85d9405ce9a21eb5796b3dcba78140f5"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\config.py": {
+    "mtime": 1779510645.6897347,
+    "ast_hash": "e60b91bc674735d0f60fa2314b8bee34",
+    "semantic_hash": "e60b91bc674735d0f60fa2314b8bee34"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\map_image.py": {
+    "mtime": 1779459128.8194058,
+    "ast_hash": "1ce256f7b8f3afb08dcd7633dc177f06",
+    "semantic_hash": "1ce256f7b8f3afb08dcd7633dc177f06"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\models.py": {
+    "mtime": 1779164191.4870403,
+    "ast_hash": "1c36d2ae66c75d1a9aae54f3adc738ec",
+    "semantic_hash": "1c36d2ae66c75d1a9aae54f3adc738ec"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\pipeline.py": {
+    "mtime": 1780644077.8413966,
+    "ast_hash": "ada274a27d56fa133e7a180ab4a17b0c",
+    "semantic_hash": "ada274a27d56fa133e7a180ab4a17b0c"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\strava.py": {
+    "mtime": 1780633185.8348322,
+    "ast_hash": "9209a4c9adecb02f710c7be7df94fafc",
+    "semantic_hash": "9209a4c9adecb02f710c7be7df94fafc"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\test_aqi_gauge.py": {
+    "mtime": 1780635763.6055994,
+    "ast_hash": "ad0c475980cc94244432c42894a46ec2",
+    "semantic_hash": "ad0c475980cc94244432c42894a46ec2"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\test_gauge.py": {
+    "mtime": 1779464516.5389342,
+    "ast_hash": "dd160808edd7b199a5f9e434e779816b",
+    "semantic_hash": "dd160808edd7b199a5f9e434e779816b"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\test_wp_upload.py": {
+    "mtime": 1780640049.248257,
+    "ast_hash": "f9c90ad2a20f892996b8352eda7df731",
+    "semantic_hash": "f9c90ad2a20f892996b8352eda7df731"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\weather.py": {
+    "mtime": 1780638440.6892333,
+    "ast_hash": "2ad63e00242f9ebd57c8c64c1a2bafbd",
+    "semantic_hash": "2ad63e00242f9ebd57c8c64c1a2bafbd"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\wordpress.py": {
+    "mtime": 1780641365.7736418,
+    "ast_hash": "610c487e83615c3142816cfebbdbb792",
+    "semantic_hash": "610c487e83615c3142816cfebbdbb792"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\README.md": {
+    "mtime": 1779163905.7715313,
+    "ast_hash": "90e37b21ee96b3aca1b77a6b7270a5fc",
+    "semantic_hash": "90e37b21ee96b3aca1b77a6b7270a5fc"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\architecture.md": {
+    "mtime": 1780633185.827287,
+    "ast_hash": "56b7ad6bc6b5e5e13b75bf1f9c733903",
+    "semantic_hash": "56b7ad6bc6b5e5e13b75bf1f9c733903"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\codebase_documentation.md": {
+    "mtime": 1780633185.8286784,
+    "ast_hash": "aaa21300e1cde89708bb5e5d0eb93ded",
+    "semantic_hash": "aaa21300e1cde89708bb5e5d0eb93ded"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\metrics.md": {
+    "mtime": 1779505137.5477593,
+    "ast_hash": "c12e8907e6f6cf4ea76fe990eedb0f21",
+    "semantic_hash": "c12e8907e6f6cf4ea76fe990eedb0f21"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\prompts\\advice_prompt.txt": {
+    "mtime": 1779461781.370511,
+    "ast_hash": "a8f5b4a5c981e1c596d95ec84043dddc",
+    "semantic_hash": "a8f5b4a5c981e1c596d95ec84043dddc"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\prompts\\blog_structure.txt": {
+    "mtime": 1780633185.8328345,
+    "ast_hash": "63031234312bd199c8414a35b45d1ecb",
+    "semantic_hash": "63031234312bd199c8414a35b45d1ecb"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\prompts\\blog_system.txt": {
+    "mtime": 1779461732.2506564,
+    "ast_hash": "d661d47cb99af52ca0fc3bb64f57741e",
+    "semantic_hash": "d661d47cb99af52ca0fc3bb64f57741e"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\prompts\\title_prompt.txt": {
+    "mtime": 1779506500.3350945,
+    "ast_hash": "f100c02b2dfc0d17ea32b79aa040fab7",
+    "semantic_hash": "f100c02b2dfc0d17ea32b79aa040fab7"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\requirements.txt": {
+    "mtime": 1779456713.6175425,
+    "ast_hash": "58d09a9e9374d8e79ec23dcd274ec942",
+    "semantic_hash": "58d09a9e9374d8e79ec23dcd274ec942"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\test_aqi_gauge.html": {
+    "mtime": 1780635763.6036043,
+    "ast_hash": "6d75e015b610be0827e0c5cb923e3f3b",
+    "semantic_hash": "6d75e015b610be0827e0c5cb923e3f3b"
+  },
+  "C:\\Users\\Z0055dcr\\Documents\\hobby_projects\\test_gauge.html": {
+    "mtime": 1779466897.3158686,
+    "ast_hash": "ee2455debd51a5d0048f2533d50e078f",
+    "semantic_hash": "ee2455debd51a5d0048f2533d50e078f"
+  }
+}

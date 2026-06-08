@@ -66,6 +66,7 @@ async def get_activity_details(activity_id: int, access_token: str, client: http
         "gear_distance_km": round(data["gear"]["distance"] / 1000) if data.get("gear") and data["gear"].get("distance") else None,
         "polyline": data.get("map", {}).get("summary_polyline", "") if data.get("map") else "",
         "start_latlng": data.get("start_latlng", []),
+        "user_description": data.get("description") or "",
     }
 
 
@@ -264,9 +265,14 @@ def _format_gear(metrics: dict) -> str:
     return gear_name
 
 
-def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str, weather: dict = None) -> str:
-    """Builds a concise Strava activity description with run summary, health metrics, and blog link"""
-    lines = [
+def build_strava_description(metrics: dict, training_data: dict, blog_url: str, next_run_advice: str, weather: dict = None, note_summary: str = "") -> str:
+    """Builds a concise Strava activity description with run summary, health metrics, and blog link.
+    If note_summary is provided, prepends it as a roundtrippable user-note line.
+    """
+    lines = []
+    if note_summary:
+        lines.append(f"\U0001f4dd Note: {note_summary}")
+    lines.extend([
         f"\U0001f4d6 Details of this run: {blog_url}",
         f"\U0001f4dd Raman's AI coach: {next_run_advice}",
         f"\U0001f4ca Today's Training Load & Health:",
@@ -276,10 +282,38 @@ def build_strava_description(metrics: dict, training_data: dict, blog_url: str, 
         f"  Runs: {training_data.get('runs_last_7d')} this week / {training_data.get('runs_last_28d')} this month",
         f"  Volume: {training_data.get('distance_last_7d_km')} km (7d) / {training_data.get('distance_last_28d_km')} km (28d)",
         f"  Gear: {_format_gear(metrics)}",
-    ]
+    ])
     if weather and weather.get("summary") != "N/A":
         lines.append(f"\U0001f326\ufe0f Weather: {weather['summary']}")
     return "\n".join(lines)
+
+
+# Markers used to roundtrip the user's own note through our generated description
+_OUR_BLOG_MARKER = "\U0001f4d6 Details of this run:"  # 📖
+_USER_NOTE_MARKER = "\U0001f4dd Note:"                # 📝 Note:
+
+
+def extract_user_note(description: str) -> str:
+    """Returns the user's own note from a Strava activity description.
+
+    - Pristine descriptions (no generated marker) are returned as-is.
+    - Generated descriptions: returns the text after our `📝 Note:` marker, stopping at
+      the next emoji-prefixed line. Empty string if our marker is present but no note.
+    """
+    if not description:
+        return ""
+    text = description.strip()
+    if _OUR_BLOG_MARKER not in text:
+        # User-authored, never touched by pipeline
+        return text
+    if _USER_NOTE_MARKER not in text:
+        return ""
+    tail = text.split(_USER_NOTE_MARKER, 1)[1]
+    # Stop at the next emoji-prefixed marker line (📖, 📝, 📊, 🌦️)
+    import re
+    m = re.search(r"\n\s*(?:\U0001f4d6|\U0001f4dd|\U0001f4ca|\U0001f326)", tail)
+    note = (tail[:m.start()] if m else tail).strip()
+    return note
 
 
 async def update_strava_description(activity_id: int, access_token: str, description: str, client: httpx.AsyncClient):

@@ -64,7 +64,7 @@ async def _openrouter_chat(system: str, user: str, temperature: float = 0.7, rol
     raise RuntimeError(f"All models failed for role '{role}'. Last error: {last_error}")
 
 
-async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: str, weather: dict = None, elevation_profile: dict = None):
+async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: str, weather: dict = None, elevation_profile: dict = None, user_note: str = ""):
     """Uses Llama 3 via OpenRouter/Groq to compile raw stats into a human narrative blog layout"""
 
     route_segments_text = build_route_segments(elevation_profile) if elevation_profile else "No segment data available."
@@ -81,12 +81,40 @@ async def generate_blog_with_ai(metrics: dict, training_data: dict, strava_url: 
         training_load_data=training_load_data,
         route_segments=route_segments_text,
         strava_url=strava_url,
+        user_note=(user_note or "").strip(),
     )
 
     blog_html = await _openrouter_chat(system_instruction, user_prompt, temperature=0.7, role="writing")
     blog_html = _inject_charts(blog_html, metrics, training_data, elevation_profile, weather or {})
 
     return blog_html
+
+
+async def generate_user_note_summary(user_note: str) -> str:
+    """Summarizes the runner's own activity note into 1–2 short sentences (<=180 chars)
+    suitable for embedding in the updated Strava description. Returns "" when the note is empty.
+    """
+    note = (user_note or "").strip()
+    if not note:
+        return ""
+    if len(note) <= 180:
+        # Short enough to use verbatim — collapse newlines
+        return " ".join(note.split())
+    system = (
+        "You summarize a runner's first-person activity note into 1–2 short sentences "
+        "(<=180 characters total) for an athlete's Strava description. Keep their voice, "
+        "first person if they used it, no hashtags or emojis. Plain text only."
+    )
+    user = f"Note:\n{note}\n\nReturn ONLY the summary text, nothing else."
+    try:
+        summary = await _openrouter_chat(system, user, temperature=0.3, role="analysis")
+    except Exception as e:
+        logger.warning(f"User note summarization failed: {e}; truncating verbatim instead")
+        return note[:177].rstrip() + "..."
+    summary = " ".join(summary.split()).strip().strip('"').strip("'")
+    if len(summary) > 200:
+        summary = summary[:197].rstrip() + "..."
+    return summary
 
 
 def _build_session_data(metrics: dict) -> str:

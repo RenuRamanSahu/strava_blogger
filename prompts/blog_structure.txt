@@ -16,10 +16,20 @@ Write a 600-900 word blog post analyzing Raman's run. Use the exact data below. 
 {route_segments}
 </route_segments>
 
+<user_note>
+{user_note}
+</user_note>
+
 SECTIONS (use these exact <h2> headings):
 
 <h2>Run Snapshot</h2>
 2-3 sentences only. State distance, pace, duration, heart rate. Set context: time of day, weather (cite temperature + humidity + AQI if available). No fluff.
+
+<h2>In Raman's Own Words</h2>
+ONLY include this section if <user_note> contains text. If <user_note> is empty, skip this <h2> entirely (do not output the heading or a placeholder).
+- 2-4 sentences. Open by paraphrasing or briefly quoting (in quotes) 1-2 ideas from Raman's note.
+- Then connect his lived experience to the data: if he says "felt heavy", reference HR or pace; if he says "great rhythm", cite cadence or splits; if he mentions weather, cite the actual numbers.
+- Keep his voice and tense; don't editorialize or moralize. No new metrics here \u2014 just bridge his words to numbers you'll analyze below.
 
 <h2>Pace & Effort Breakdown</h2>
 - Compare avg vs max pace — what does the gap reveal about pacing strategy?

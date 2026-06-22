@@ -139,7 +139,7 @@ async def process_pipeline_background(activity_id: int):
 
             # Persist activity + derived training data for later insights
             try:
-                save_activity(activity_id, metrics, training_data, weather, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
+                save_activity(activity_id, metrics, training_data, weather, elevation_profile=elevation_profile, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
                 print(f"\u2705 Step 8b: Activity saved to local DB (id={activity_id})")
             except Exception as e:
                 print(f"\u26a0\ufe0f Step 8b: Failed to save activity to DB — {e}")
@@ -286,7 +286,7 @@ async def process_pipeline_streaming(activity_id: int):
 
             # Persist activity for later insights
             try:
-                save_activity(activity_id, metrics, training_data, weather, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
+                save_activity(activity_id, metrics, training_data, weather, elevation_profile=elevation_profile, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
                 yield f"✅ Step 8b: Activity saved to local DB (id={activity_id})"
             except Exception as e:
                 yield f"⚠️ Step 8b: Failed to save activity to DB — {e}"

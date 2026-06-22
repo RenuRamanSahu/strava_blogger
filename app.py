@@ -2,6 +2,7 @@ import os
 import re
 import secrets
 import httpx
+import asyncio
 from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -10,9 +11,22 @@ from config import STRAVA_VERIFY_TOKEN, WP_USERNAME, WP_APP_PASSWORD
 from strava import get_strava_access_token
 from models import StravaWebhookPayload
 from pipeline import process_pipeline_background, process_pipeline_streaming
+from db import init_db, is_db_empty
 
 app = FastAPI()
 security = HTTPBasic()
+
+
+# ─── DATABASE INITIALIZATION ───
+# Initialize DB on startup; auto-backfill if empty
+try:
+    init_db()
+    if is_db_empty():
+        print("🔍 First deployment detected — database is empty")
+        print("   Run 'python scripts/backfill_db.py' to populate with historical data")
+        print("   (Optional — the app will work fine without historical data)")
+except Exception as e:
+    print(f"⚠️  Database initialization failed: {e}")
 
 
 def verify_wp_credentials(credentials: HTTPBasicCredentials = Depends(security)):

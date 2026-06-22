@@ -180,3 +180,72 @@ Used as the `after` parameter for the Strava API to fetch recent activities.
 $$\text{minutes} = \lfloor p \rfloor, \quad \text{seconds} = \lfloor (p - \lfloor p \rfloor) \times 60 \rfloor$$
 
 Used in route segment text (Python) and Chart.js tooltip callbacks (JavaScript).
+
+---
+
+## 12. HR-less Metrics (useful when no heart-rate available)
+
+These metrics can be computed from GPS, speed, distance, time, elevation and stream data when heart-rate is missing.
+
+- Average Speed / Pace
+	- Store as `avg_speed_m_s` and `avg_pace_s_per_km`.
+	- Formula: $\mathrm{avg\_speed} = \frac{distance\_m}{moving\_time\_s}$; $\mathrm{avg\_pace\_s/km} = \frac{1000}{\mathrm{avg\_speed}}$.
+
+- Normalized Pace (elevation-adjusted)
+	- Simple elevation penalty: $\mathrm{norm\_pace} = \mathrm{pace\_s} + k\times\frac{gain\_m}{distance\_km}$ where $k$ ≈ 2–6 s per meter/km (tune per athlete).
+
+- Pace Variability (per-km)
+	- Compute per-km paces $p_i$ then: $\mathrm{pace\_std} = \mathrm{stddev}(p_i)$ and $\mathrm{pace\_cv} = \frac{\mathrm{pace\_std}}{\mathrm{mean}(p_i)}$.
+	- Useful for detecting intervals, surges, or pacing noise (higher = more variable).
+
+- Negative/Positive Split Indicator
+	- Compare first half vs second half pace: $\Delta = mean(p_{second}) - mean(p_{first})$ (negative = faster second half).
+
+- Stop / Moving Ratio
+	- $\mathrm{moving\_pct} = \frac{moving\_time}{elapsed\_time} \times 100$ — highlights stop-heavy activities (walk breaks, GPS pauses).
+
+- Split-level Fast Segment Detection (intervals)
+	- Flag segments where $p_{seg} < mean(p) - 2\times\mathrm{pace\_std}$ over repeated blocks → likely interval work.
+
+- Runner Effort Proxy (pace × duration)
+	- `effort_proxy = duration_mins * (threshold_pace_s_per_km / avg_pace_s_per_km)` where threshold_pace is goal or recent best; if unknown, use 5k pace estimate.
+
+- Distance-normalized Elevation
+	- $\mathrm{elev\_gain\_per\_km} = \frac{total\_elevation\_gain\_m}{distance\_km}$ — useful to explain slow pace on hilly days.
+
+- Max/Mean Grade
+	- From elevation stream compute max gradient and mean positive grade across uphill sections.
+
+- Per-km Segment Stats
+	- For each km: pace, elevation gain, time lost to stops. Useful inputs for `pace_variability` and interval detection.
+
+- Stride & Cadence Proxies (if no cadence sensor)
+	- If cadence not present, infer step frequency from GPS-derived speed + assumed stride length (approximation only) — include as optional/experimental.
+
+- Route Difficulty Score
+	- Combine elevation/km and distance to create a simple difficulty index: $Difficulty = distance\_km \times (1 + \alpha\times elev\_gain\_per\_km)$ where $\alpha$ ≈ 0.02–0.04.
+
+- Training Load (GPS-based proxy)
+	- Use existing training load formula (duration × normalized speed) from section 3. This requires no HR and feeds ACWR.
+
+- Consistency / Fatigue Proxies (population-free)
+	- Rising pace variability across recent runs, increased stopped time %, and sudden weekly distance jump (>25%) together indicate elevated fatigue/risk.
+
+### Storage recommendations
+
+- Add numeric columns to the DB for the most-used HR-less derived fields: `avg_speed_m_s`, `avg_pace_s_per_km`, `pace_cv`, `pace_std_s`, `moving_pct`, `elev_gain_per_km`, `difficulty`, `effort_proxy`, plus `metrics_json` (already present) to allow re-calculation.
+- Store per-km splits as a JSON array in `metrics_json` or a separate table `splits(activity_id, km_index, pace_s, elev_gain_m, time_s)` for more advanced queries.
+
+### Example quick calculations (python)
+
+```python
+import statistics
+paces = [/* per-km pace in seconds */]
+pace_std = statistics.pstdev(paces)
+pace_cv = pace_std / statistics.mean(paces)
+moving_pct = moving_time_s / elapsed_time_s * 100
+elev_per_km = total_elev_m / max(distance_km, 0.001)
+```
+
+Implement these HR-less metrics in `db.save_activity` or a post-processing script to backfill existing records. Prioritize `avg_pace`, `pace_cv`, `moving_pct`, `elev_gain_per_km`, and the `training load` proxy so the AI can use them immediately for narrative hooks.
+

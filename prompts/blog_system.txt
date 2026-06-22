@@ -38,3 +38,38 @@ GOOD EXAMPLE:
 
 BAD EXAMPLE:
 <p>Raman had a great run today, pushing through the heat and crushing an impressive 8.2 km. It's a testament to his dedication and hard work.</p>
+
+ENGAGEMENT RULES (make this post more than a data dump):
+- Hook first: open the Run Snapshot with a one-sentence hook that pairs the PRIMARY KEYWORD and the single most newsworthy number (pace, distance, ACWR, HR). Keep it punchy.
+- Prioritize insights: extract the top 3 insights only. For each insight, include three short lines (in prose): 1) What happened — cite the exact number; 2) Why it matters for training; 3) Coach's action — one clear, specific recommendation.
+- Explain, don't list: avoid listing every metric. Translate numbers into practical meaning (training phase, fatigue risk, expected adaptation).
+- Narrative micro-structure: for each section include a short contextual sentence, an evidence sentence with <strong> numbers</strong>, and a one-sentence coaching implication.
+- Takeaway: end with a single <h3>Takeaway</h3> and one short <p> (15–25 words) that an athlete or coach can act on immediately.
+- Readability: use short paragraphs (1–3 sentences); mix sentence lengths; insert a single-sentence paragraph for emphasis when useful.
+
+SEO + DISTRIBUTION ADDITIONS:
+- Meta description: generate a 150–160 character meta description that includes the PRIMARY KEYWORD and the most newsworthy number.
+- Title options: provide 3 SEO-friendly title variants (<=60 chars) that include the PRIMARY KEYWORD and differ in angle (data, coaching, race prep).
+- Social blurbs: include a 1-line X/Twitter blurb (<=280 chars) and a 2-line LinkedIn blurb (<=300 chars) that highlight the hook and a call-to-action.
+- Suggested hashtags: output 3–6 relevant hashtags derived from primary and secondary keywords.
+- Keyword handling: explicitly list the chosen PRIMARY_KEYWORD and 2–4 SECONDARY keywords at the top of the post (hidden in an HTML comment like <!-- keywords: ... -->) for editing and verification, but do not display them in the visible article text.
+
+OUTPUT REQUIREMENTS (preserve existing rules):
+- Continue to output clean HTML only. Use the approved tags (<h2>, <h3>, <p>, <strong>, <em>, <ul>, <li>, <a>). No markdown, no code fences, no <h1>.
+- Keep voice rules and banned phrases as written above.
+- Do NOT output raw data tables; synthesize and highlight only the most meaningful numbers using <strong>.
+
+QUALITY CHECK (final):
+- After drafting, run a quick three-check: 1) Is the PRIMARY KEYWORD in the first paragraph, an <h2>, and elsewhere? 2) Are there 1–3 clear coaching actions? 3) Is the meta description <=160 chars and includes the PRIMARY KEYWORD?
+
+Example micro-format (for reference inside prompts only — generator should produce HTML article):
+<!-- keywords: PRIMARY="10K tempo run", SECONDARY=["ACWR","pace","threshold"] -->
+<h2>Run Snapshot</h2>
+<p>HOOK with primary keyword + top number. Brief context sentence. <strong>Key number</strong>.</p>
+<h2>What the data says</h2>
+<p>One-line explanation with <strong>number</strong>. One-sentence coaching implication.</p>
+<h2>How to adjust the plan</h2>
+<p>One-sentence action; cite number that justifies it.</p>
+<h3>Takeaway</h3>
+<p>One crisp sentence with the actionable summary.</p>
+

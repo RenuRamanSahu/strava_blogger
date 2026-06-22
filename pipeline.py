@@ -9,12 +9,19 @@ from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
 from config import WP_SITE_URL
+from db import init_db, save_activity
 
 
 async def process_pipeline_background(activity_id: int):
     """Master background execution link connecting data fetching to publishing.
     Only Step 8 (post_to_wordpress) is a hard stop — every other call has a fallback.
     """
+    # ensure local DB exists
+    try:
+        init_db()
+    except Exception:
+        print("⚠️ Could not initialize local DB; continuing without persistence")
+
     try:
         async with httpx.AsyncClient(
             headers={
@@ -130,6 +137,13 @@ async def process_pipeline_background(activity_id: int):
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             print(f"\u2705 Step 8: Blog published \u2014 {blog_url}")
 
+            # Persist activity + derived training data for later insights
+            try:
+                save_activity(activity_id, metrics, training_data, weather, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
+                print(f"\u2705 Step 8b: Activity saved to local DB (id={activity_id})")
+            except Exception as e:
+                print(f"\u26a0\ufe0f Step 8b: Failed to save activity to DB — {e}")
+
             # 9. Update Strava activity description with summary + health metrics + weather + blog link
             next_run_advice = ""
             try:
@@ -158,6 +172,12 @@ async def process_pipeline_streaming(activity_id: int):
     """Same pipeline as process_pipeline_background, but yields progress messages for SSE streaming.
     Only Step 8 (post_to_wordpress) is a hard stop — every other call has a fallback.
     """
+    # ensure local DB exists
+    try:
+        init_db()
+    except Exception:
+        yield "⚠️ Could not initialize local DB; continuing without persistence"
+
     try:
         async with httpx.AsyncClient(
             headers={
@@ -263,6 +283,13 @@ async def process_pipeline_streaming(activity_id: int):
             wp_result = await post_to_wordpress(post_title, blog_html, client, featured_media_id, excerpt=meta_description)
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             yield f"✅ Step 8: Blog published — {blog_url}"
+
+            # Persist activity for later insights
+            try:
+                save_activity(activity_id, metrics, training_data, weather, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
+                yield f"✅ Step 8b: Activity saved to local DB (id={activity_id})"
+            except Exception as e:
+                yield f"⚠️ Step 8b: Failed to save activity to DB — {e}"
 
             next_run_advice = ""
             try:

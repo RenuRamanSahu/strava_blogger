@@ -5,12 +5,16 @@ Provides:
 - save_activity(activity_id, metrics, training_data, weather, blog_url, post_title, meta_description)
 - get_acwr_trend(limit=28)
 - get_recent_activities(limit=20)
+- trigger_backfill_if_empty(): async function to auto-backfill on first deployment
 
 This module uses the stdlib sqlite3 module and stores raw JSON blobs for later analysis.
 """
 import sqlite3
 import json
 import os
+import sys
+import shutil
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from config import DB_PATH
@@ -18,9 +22,149 @@ from config import DB_PATH
 _DB_PATH = None
 
 
+def _get_target_db_path() -> str:
+    return _DB_PATH or DB_PATH
+
+
+def _get_fallback_db_path() -> str:
+    # Fallback DB checked into repo (may contain historical activities from a previous run)
+    return os.path.join(os.path.dirname(__file__), "data", "strava_metrics_1.db")
+
+
+def _activities_table_count(db_path: str) -> Optional[int]:
+    """
+    Return COUNT(*) from activities, or:
+    - None if db file doesn't exist or activities table doesn't exist.
+    """
+    if not os.path.exists(db_path):
+        return None
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+
+        # activities table might not exist yet in a partially initialized DB
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='activities'"
+        )
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            return None
+
+        cur.execute("SELECT COUNT(*) FROM activities")
+        count = cur.fetchone()[0]
+        conn.close()
+        return int(count)
+    except Exception:
+        # If DB is corrupt/unreadable, don't block app startup; treat as unknown (no copy check)
+        return None
+
+
+def ensure_db_populated_from_fallback():
+    """
+    On startup, if the target DB file is missing or its `activities` table is empty,
+    copy data from fallback DB (data/strava_metrics_1.db) if it exists.
+
+    Uniqueness per activity_id is guaranteed by activities.activity_id PRIMARY KEY +
+    UPSERT behavior in save_activity().
+    """
+    target_db_path = _get_target_db_path()
+    fallback_db_path = _get_fallback_db_path()
+
+    # If fallback doesn't exist, nothing to do
+    if not os.path.exists(fallback_db_path):
+        return
+
+    target_count = _activities_table_count(target_db_path)
+
+    # Copy conditions:
+    # - target DB doesn't exist (count is None because file doesn't exist)
+    # - target DB exists but activities table missing (count is None)
+    # - target DB exists and activities table exists but is empty
+    if target_count is None or target_count == 0:
+        os.makedirs(os.path.dirname(target_db_path), exist_ok=True)
+        # Copy fallback over target to preserve historical rows as-is
+        shutil.copy2(fallback_db_path, target_db_path)
+
+
+def _get_column_names(conn) -> set:
+    """Get all column names in the activities table."""
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(activities)")
+    rows = cur.fetchall()
+    return {row[1] for row in rows}
+
+
+def _add_column_if_missing(conn, col_name: str, col_type: str = "REAL"):
+    """Safely add a column to activities table if it doesn't exist."""
+    existing_cols = _get_column_names(conn)
+    if col_name not in existing_cols:
+        try:
+            conn.execute(f"ALTER TABLE activities ADD COLUMN {col_name} {col_type}")
+            conn.commit()
+            print(f"✨ Added new column: {col_name} ({col_type})")
+            return True
+        except Exception as e:
+            print(f"⚠️  Could not add column {col_name}: {e}")
+            return False
+    return False
+
+
+def _extract_new_metrics(metrics: Dict[str, Any], training_data: Dict[str, Any], weather: Dict[str, Any]) -> Dict[str, tuple]:
+    """
+    Extract numeric/string fields that could be useful as columns.
+    Returns: {column_name: (value, sql_type), ...}
+    
+    Only extracts top-level numeric/string fields (not nested objects).
+    """
+    new_fields = {}
+    
+    # Allowlist of field patterns to consider for column extraction
+    # (avoid extracting everything, focus on likely metrics)
+    metric_patterns = [
+        "power", "cadence", "temperature", "humidity", "wind", "pressure",
+        "gear", "device", "trainer", "commute", "manual", "flagged",
+        "visible", "estimated", "suffered", "perceived", "normalized",
+        "kilojoules", "vi", "workout", "relative", "intensity"
+    ]
+    
+    for source_dict, prefix in [(metrics, "metric_"), (training_data, "training_"), (weather, "weather_")]:
+        if not isinstance(source_dict, dict):
+            continue
+        
+        for key, value in source_dict.items():
+            # Skip if already a standard column or nested object
+            if key in {"metrics_json", "training_json", "weather_json"} or isinstance(value, (dict, list)):
+                continue
+            
+            # Determine if this looks like a metric worth storing as column
+            is_candidate = (
+                isinstance(value, (int, float, bool, str)) and
+                any(pattern in key.lower() for pattern in metric_patterns)
+            )
+            
+            if is_candidate:
+                col_name = f"{prefix}{key}".replace("-", "_").lower()[:63]  # SQLite col name limit
+                
+                if isinstance(value, bool):
+                    new_fields[col_name] = (value, "INTEGER")  # SQLite stores bool as 0/1
+                elif isinstance(value, (int, float)):
+                    new_fields[col_name] = (value, "REAL")
+                else:  # string
+                    new_fields[col_name] = (value, "TEXT")
+    
+    return new_fields
+
+
 def init_db(db_path: Optional[str] = None):
     global _DB_PATH
     _DB_PATH = db_path or DB_PATH
+
+    # If the DB is missing/empty, populate from fallback DB before creating tables.
+    # This ensures the app has historical context immediately on first deploy.
+    ensure_db_populated_from_fallback()
+
     # ensure directory exists
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(_DB_PATH)
@@ -82,6 +226,7 @@ def save_activity(activity_id: int, metrics: Dict[str, Any], training_data: Dict
 
     Stores raw JSON blobs for metrics/training/weather to allow later re-processing.
     Computes and stores HR-less derived metrics (pace variability, elevation per km, etc.).
+    Dynamically detects and adds new metric columns as they appear.
     """
     conn = _get_conn()
     cur = conn.cursor()
@@ -118,58 +263,53 @@ def save_activity(activity_id: int, metrics: Dict[str, Any], training_data: Dict
     training_json = json.dumps(training_data, default=str)
     weather_json = json.dumps(weather or {}, default=str)
 
-    cur.execute(
-        """
-        INSERT INTO activities (
-            activity_id, start_date, name, distance_km, duration_mins, elevation_m,
-            average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
-            injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km, 
-            pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
-            blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
-            created_at, updated_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(activity_id) DO UPDATE SET
-            start_date=excluded.start_date,
-            name=excluded.name,
-            distance_km=excluded.distance_km,
-            duration_mins=excluded.duration_mins,
-            elevation_m=excluded.elevation_m,
-            average_pace=excluded.average_pace,
-            average_heartrate=excluded.average_heartrate,
-            max_heartrate=excluded.max_heartrate,
-            calories=excluded.calories,
-            acwr=excluded.acwr,
-            health_status=excluded.health_status,
-            injury_risk=excluded.injury_risk,
-            weather_summary=excluded.weather_summary,
-            weather_aqi=excluded.weather_aqi,
-            avg_speed_m_s=excluded.avg_speed_m_s,
-            avg_pace_s_per_km=excluded.avg_pace_s_per_km,
-            pace_cv=excluded.pace_cv,
-            pace_std_s=excluded.pace_std_s,
-            moving_pct=excluded.moving_pct,
-            elev_gain_per_km=excluded.elev_gain_per_km,
-            difficulty=excluded.difficulty,
-            effort_proxy=excluded.effort_proxy,
-            blog_url=excluded.blog_url,
-            post_title=excluded.post_title,
-            meta_description=excluded.meta_description,
-            metrics_json=excluded.metrics_json,
-            training_json=excluded.training_json,
-            weather_json=excluded.weather_json,
-            updated_at=excluded.updated_at
-        """,
-        (
-            activity_id, start_date, name, distance_km, duration_mins, elevation_m,
-            average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
-            injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km,
-            pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
-            blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
-            now, now,
-        ),
+    # Detect and migrate new metric fields to dedicated columns
+    new_metrics = _extract_new_metrics(metrics, training_data, weather)
+    new_metric_values = {}
+    for col_name, (value, col_type) in new_metrics.items():
+        _add_column_if_missing(conn, col_name, col_type)
+        new_metric_values[col_name] = value
+
+    # Build dynamic INSERT/UPDATE statement with new metric columns
+    standard_cols = [
+        "activity_id", "start_date", "name", "distance_km", "duration_mins", "elevation_m",
+        "average_pace", "average_heartrate", "max_heartrate", "calories", "acwr", "health_status",
+        "injury_risk", "weather_summary", "weather_aqi", "avg_speed_m_s", "avg_pace_s_per_km", 
+        "pace_cv", "pace_std_s", "moving_pct", "elev_gain_per_km", "difficulty", "effort_proxy",
+        "blog_url", "post_title", "meta_description", "metrics_json", "training_json", "weather_json", 
+        "created_at", "updated_at"
+    ]
+    all_cols = standard_cols + list(new_metric_values.keys())
+    
+    standard_vals = (
+        activity_id, start_date, name, distance_km, duration_mins, elevation_m,
+        average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
+        injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km,
+        pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
+        blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
+        now, now,
     )
-    conn.commit()
-    conn.close()
+    new_vals = tuple(new_metric_values[col] for col in new_metric_values.keys())
+    all_vals = standard_vals + new_vals
+
+    placeholders = ",".join(["?"] * len(all_cols))
+    update_set = ",".join([f"{col}=excluded.{col}" for col in all_cols if col not in {"activity_id", "created_at"}])
+
+    insert_sql = f"""
+        INSERT INTO activities ({", ".join(all_cols)})
+        VALUES ({placeholders})
+        ON CONFLICT(activity_id) DO UPDATE SET {update_set}
+    """
+
+    try:
+        cur.execute(insert_sql, all_vals)
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Error saving activity {activity_id}: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def get_recent_activities(limit: int = 20) -> List[Dict[str, Any]]:
@@ -280,3 +420,39 @@ def compute_hr_less_metrics(metrics: Dict[str, Any], elevation_profile: Dict[str
         derived["effort_proxy"] = effort_proxy
     
     return derived
+
+
+async def trigger_backfill_if_empty():
+    """
+    Async wrapper to trigger backfill on app startup if database is empty.
+    Dynamically imports and calls the backfill_activities function from backfill_db.py.
+    """
+    # If DB already has data, skip backfill
+    if not is_db_empty():
+        print("✅ Database already populated. Skipping backfill.")
+        return
+    
+    # Dynamically import the backfill script
+    scripts_dir = Path(__file__).parent / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    
+    try:
+        from backfill_db import backfill_activities
+        
+        print("📊 Backfill starting: fetching historical Strava activities...")
+        success = await backfill_activities(days=90, force=False)
+        
+        if success:
+            activity_count = get_activity_count()
+            print(f"✅ Backfill complete! Database now has {activity_count} activities.")
+        else:
+            print("⚠️  Backfill was skipped or encountered an issue. App will continue normally.")
+    
+    except ImportError as e:
+        print(f"⚠️  Could not import backfill module: {e}")
+    except Exception as e:
+        print(f"⚠️  Backfill error (app will continue working): {e}")
+    finally:
+        # Clean up sys.path
+        if str(scripts_dir) in sys.path:
+            sys.path.remove(str(scripts_dir))

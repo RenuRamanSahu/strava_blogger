@@ -11,22 +11,32 @@ from config import STRAVA_VERIFY_TOKEN, WP_USERNAME, WP_APP_PASSWORD
 from strava import get_strava_access_token
 from models import StravaWebhookPayload
 from pipeline import process_pipeline_background, process_pipeline_streaming
-from db import init_db, is_db_empty
+from db import init_db, is_db_empty, trigger_backfill_if_empty
 
 app = FastAPI()
 security = HTTPBasic()
 
 
 # ─── DATABASE INITIALIZATION ───
-# Initialize DB on startup; auto-backfill if empty
+# Initialize DB on startup
 try:
     init_db()
     if is_db_empty():
-        print("🔍 First deployment detected — database is empty")
-        print("   Run 'python scripts/backfill_db.py' to populate with historical data")
-        print("   (Optional — the app will work fine without historical data)")
+        print("🔍 Database is empty. Scheduling automatic backfill in background...")
 except Exception as e:
     print(f"⚠️  Database initialization failed: {e}")
+
+
+# ─── AUTOMATIC BACKFILL ON STARTUP ───
+@app.on_event("startup")
+async def startup_backfill():
+    """Automatically backfill database with historical Strava data if empty."""
+    if is_db_empty():
+        print("📊 Starting automatic backfill of historical Strava activities...")
+        try:
+            await trigger_backfill_if_empty()
+        except Exception as e:
+            print(f"⚠️  Backfill encountered an error (app will still work): {e}")
 
 
 def verify_wp_credentials(credentials: HTTPBasicCredentials = Depends(security)):

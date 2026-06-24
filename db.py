@@ -221,12 +221,41 @@ def _get_conn():
     return conn
 
 
+def _auto_export_to_json():
+    """Automatically export database to JSON for backup/version control."""
+    try:
+        backup_file = os.path.join(os.path.dirname(_DB_PATH or DB_PATH), "strava_activities_backup.json")
+        
+        conn = sqlite3.connect(_DB_PATH or DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        
+        cur.execute("SELECT * FROM activities ORDER BY start_date DESC")
+        rows = cur.fetchall()
+        activities = [dict(row) for row in rows]
+        conn.close()
+        
+        backup_data = {
+            "export_time": datetime.utcnow().isoformat(),
+            "activity_count": len(activities),
+            "activities": activities
+        }
+        
+        with open(backup_file, 'w') as f:
+            json.dump(backup_data, f, indent=2, default=str)
+        
+        # Only log occasionally to avoid spam
+        if len(activities) % 5 == 0:
+            print(f"💾 Backup: {len(activities)} activities exported to {backup_file}")
+    except Exception as e:
+        print(f"⚠️  Auto-export to JSON failed: {e}")
+
+
 def save_activity(activity_id: int, metrics: Dict[str, Any], training_data: Dict[str, Any], weather: Dict[str, Any], elevation_profile: Dict[str, Any] = None, blog_url: str = None, post_title: str = None, meta_description: str = None):
     """Insert or update an activity record. Uses activity_id as the primary key.
 
     Stores raw JSON blobs for metrics/training/weather to allow later re-processing.
     Computes and stores HR-less derived metrics (pace variability, elevation per km, etc.).
-    Dynamically detects and adds new metric columns as they appear.
     """
     conn = _get_conn()
     cur = conn.cursor()
@@ -263,53 +292,66 @@ def save_activity(activity_id: int, metrics: Dict[str, Any], training_data: Dict
     training_json = json.dumps(training_data, default=str)
     weather_json = json.dumps(weather or {}, default=str)
 
-    # Detect and migrate new metric fields to dedicated columns
+    # Detect and optionally add new metric columns (non-blocking)
     new_metrics = _extract_new_metrics(metrics, training_data, weather)
-    new_metric_values = {}
     for col_name, (value, col_type) in new_metrics.items():
         _add_column_if_missing(conn, col_name, col_type)
-        new_metric_values[col_name] = value
 
-    # Build dynamic INSERT/UPDATE statement with new metric columns
-    standard_cols = [
-        "activity_id", "start_date", "name", "distance_km", "duration_mins", "elevation_m",
-        "average_pace", "average_heartrate", "max_heartrate", "calories", "acwr", "health_status",
-        "injury_risk", "weather_summary", "weather_aqi", "avg_speed_m_s", "avg_pace_s_per_km", 
-        "pace_cv", "pace_std_s", "moving_pct", "elev_gain_per_km", "difficulty", "effort_proxy",
-        "blog_url", "post_title", "meta_description", "metrics_json", "training_json", "weather_json", 
-        "created_at", "updated_at"
-    ]
-    all_cols = standard_cols + list(new_metric_values.keys())
-    
-    standard_vals = (
-        activity_id, start_date, name, distance_km, duration_mins, elevation_m,
-        average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
-        injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km,
-        pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
-        blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
-        now, now,
+    cur.execute(
+        """
+        INSERT INTO activities (
+            activity_id, start_date, name, distance_km, duration_mins, elevation_m,
+            average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
+            injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km, 
+            pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
+            blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
+            created_at, updated_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(activity_id) DO UPDATE SET
+            start_date=excluded.start_date,
+            name=excluded.name,
+            distance_km=excluded.distance_km,
+            duration_mins=excluded.duration_mins,
+            elevation_m=excluded.elevation_m,
+            average_pace=excluded.average_pace,
+            average_heartrate=excluded.average_heartrate,
+            max_heartrate=excluded.max_heartrate,
+            calories=excluded.calories,
+            acwr=excluded.acwr,
+            health_status=excluded.health_status,
+            injury_risk=excluded.injury_risk,
+            weather_summary=excluded.weather_summary,
+            weather_aqi=excluded.weather_aqi,
+            avg_speed_m_s=excluded.avg_speed_m_s,
+            avg_pace_s_per_km=excluded.avg_pace_s_per_km,
+            pace_cv=excluded.pace_cv,
+            pace_std_s=excluded.pace_std_s,
+            moving_pct=excluded.moving_pct,
+            elev_gain_per_km=excluded.elev_gain_per_km,
+            difficulty=excluded.difficulty,
+            effort_proxy=excluded.effort_proxy,
+            blog_url=excluded.blog_url,
+            post_title=excluded.post_title,
+            meta_description=excluded.meta_description,
+            metrics_json=excluded.metrics_json,
+            training_json=excluded.training_json,
+            weather_json=excluded.weather_json,
+            updated_at=excluded.updated_at
+        """,
+        (
+            activity_id, start_date, name, distance_km, duration_mins, elevation_m,
+            average_pace, average_heartrate, max_heartrate, calories, acwr, health_status,
+            injury_risk, weather_summary, weather_aqi, avg_speed_m_s, avg_pace_s_per_km,
+            pace_cv, pace_std_s, moving_pct, elev_gain_per_km, difficulty, effort_proxy,
+            blog_url, post_title, meta_description, metrics_json, training_json, weather_json, 
+            now, now,
+        ),
     )
-    new_vals = tuple(new_metric_values[col] for col in new_metric_values.keys())
-    all_vals = standard_vals + new_vals
-
-    placeholders = ",".join(["?"] * len(all_cols))
-    update_set = ",".join([f"{col}=excluded.{col}" for col in all_cols if col not in {"activity_id", "created_at"}])
-
-    insert_sql = f"""
-        INSERT INTO activities ({", ".join(all_cols)})
-        VALUES ({placeholders})
-        ON CONFLICT(activity_id) DO UPDATE SET {update_set}
-    """
-
-    try:
-        cur.execute(insert_sql, all_vals)
-        conn.commit()
-    except Exception as e:
-        print(f"❌ Error saving activity {activity_id}: {e}")
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    conn.commit()
+    conn.close()
+    
+    # Auto-export to JSON for backup
+    _auto_export_to_json()
 
 
 def get_recent_activities(limit: int = 20) -> List[Dict[str, Any]]:

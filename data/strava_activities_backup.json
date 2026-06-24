@@ -1,0 +1,40 @@
+{
+  "export_time": "2026-06-24T15:43:56.719205",
+  "activity_count": 1,
+  "activities": [
+    {
+      "activity_id": 12345,
+      "start_date": null,
+      "name": "Test",
+      "distance_km": 10.0,
+      "duration_mins": 60.0,
+      "elevation_m": null,
+      "average_pace": null,
+      "average_heartrate": null,
+      "max_heartrate": null,
+      "calories": null,
+      "acwr": 1.2,
+      "health_status": "good",
+      "injury_risk": "low",
+      "weather_summary": "Sunny",
+      "weather_aqi": 45,
+      "blog_url": "https://example.com/test",
+      "post_title": "Test",
+      "meta_description": "Test",
+      "avg_speed_m_s": 2.7777777777777777,
+      "avg_pace_s_per_km": 360.0,
+      "pace_cv": null,
+      "pace_std_s": null,
+      "moving_pct": 100.0,
+      "elev_gain_per_km": null,
+      "difficulty": null,
+      "effort_proxy": 50.0,
+      "metrics_json": "{\"name\": \"Test\", \"distance\": 10000, \"distance_km\": 10, \"moving_time\": 3600, \"duration_mins\": 60}",
+      "training_json": "{\"acwr\": 1.2, \"health_status\": \"good\", \"injury_risk\": \"low\"}",
+      "weather_json": "{\"summary\": \"Sunny\", \"aqi\": 45}",
+      "created_at": "2026-06-24T15:43:56.712488",
+      "updated_at": "2026-06-24T15:43:56.712488",
+      "metric_moving_time": null
+    }
+  ]
+}

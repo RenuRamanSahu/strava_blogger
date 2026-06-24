@@ -1,3 +1,0 @@
-- [ ] Update db.py to auto-populate data/strava_metrics.db from data/strava_metrics_1.db when the target activities table is missing/empty on startup
-- [ ] Ensure activity uniqueness remains guaranteed via activity_id PRIMARY KEY + UPSERT in save_activity()
-- [ ] Test by running a quick init_db/is_db_empty check

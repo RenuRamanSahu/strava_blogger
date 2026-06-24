@@ -9,18 +9,18 @@ from wordpress import post_to_wordpress, upload_media_to_wordpress
 from map_image import generate_route_image
 from weather import get_weather_for_activity
 from config import WP_SITE_URL
-from db import init_db, save_activity
+from cache import cache_new_activity, refresh_cache_if_stale
 
 
 async def process_pipeline_background(activity_id: int):
     """Master background execution link connecting data fetching to publishing.
     Only Step 8 (post_to_wordpress) is a hard stop — every other call has a fallback.
     """
-    # ensure local DB exists
+    # Refresh cache from Strava if stale (>6 hours old)
     try:
-        init_db()
-    except Exception:
-        print("⚠️ Could not initialize local DB; continuing without persistence")
+        await refresh_cache_if_stale()
+    except Exception as e:
+        print(f"⚠️  Could not refresh cache: {e}; continuing with existing cache")
 
     try:
         async with httpx.AsyncClient(
@@ -137,12 +137,24 @@ async def process_pipeline_background(activity_id: int):
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             print(f"\u2705 Step 8: Blog published \u2014 {blog_url}")
 
-            # Persist activity + derived training data for later insights
+            # Cache activity for future ACWR calculations
             try:
-                save_activity(activity_id, metrics, training_data, weather, elevation_profile=elevation_profile, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
-                print(f"\u2705 Step 8b: Activity saved to local DB (id={activity_id})")
+                activity_cache_entry = {
+                    "id": activity_id,
+                    "name": metrics.get("name"),
+                    "start_date": metrics.get("start_date_local") or metrics.get("start_date_local_raw"),
+                    "distance_km": metrics.get("distance_km") or (metrics.get("distance", 0) / 1000 if metrics.get("distance") else 0),
+                    "moving_time": metrics.get("moving_time") or metrics.get("duration_mins"),
+                    "elevation_m": metrics.get("total_elevation_gain") or metrics.get("elevation_m"),
+                    "average_heartrate": metrics.get("average_heartrate"),
+                    "max_heartrate": metrics.get("max_heartrate"),
+                    "blog_url": blog_url,
+                    "post_title": post_title,
+                }
+                cache_new_activity(activity_cache_entry)
+                print(f"✅ Step 8b: Activity cached for ACWR (id={activity_id})")
             except Exception as e:
-                print(f"\u26a0\ufe0f Step 8b: Failed to save activity to DB — {e}")
+                print(f"⚠️ Step 8b: Failed to cache activity — {e}")
 
             # 9. Update Strava activity description with summary + health metrics + weather + blog link
             next_run_advice = ""
@@ -172,12 +184,6 @@ async def process_pipeline_streaming(activity_id: int):
     """Same pipeline as process_pipeline_background, but yields progress messages for SSE streaming.
     Only Step 8 (post_to_wordpress) is a hard stop — every other call has a fallback.
     """
-    # ensure local DB exists
-    try:
-        init_db()
-    except Exception:
-        yield "⚠️ Could not initialize local DB; continuing without persistence"
-
     try:
         async with httpx.AsyncClient(
             headers={
@@ -284,12 +290,24 @@ async def process_pipeline_streaming(activity_id: int):
             blog_url = f"{WP_SITE_URL}/?p={wp_result['id']}"
             yield f"✅ Step 8: Blog published — {blog_url}"
 
-            # Persist activity for later insights
+            # Cache activity for future ACWR calculations
             try:
-                save_activity(activity_id, metrics, training_data, weather, elevation_profile=elevation_profile, blog_url=blog_url, post_title=post_title, meta_description=meta_description)
-                yield f"✅ Step 8b: Activity saved to local DB (id={activity_id})"
+                activity_cache_entry = {
+                    "id": activity_id,
+                    "name": metrics.get("name"),
+                    "start_date": metrics.get("start_date_local") or metrics.get("start_date_local_raw"),
+                    "distance_km": metrics.get("distance_km") or (metrics.get("distance", 0) / 1000 if metrics.get("distance") else 0),
+                    "moving_time": metrics.get("moving_time") or metrics.get("duration_mins"),
+                    "elevation_m": metrics.get("total_elevation_gain") or metrics.get("elevation_m"),
+                    "average_heartrate": metrics.get("average_heartrate"),
+                    "max_heartrate": metrics.get("max_heartrate"),
+                    "blog_url": blog_url,
+                    "post_title": post_title,
+                }
+                cache_new_activity(activity_cache_entry)
+                yield f"✅ Step 8b: Activity cached for ACWR (id={activity_id})"
             except Exception as e:
-                yield f"⚠️ Step 8b: Failed to save activity to DB — {e}"
+                yield f"⚠️ Step 8b: Failed to cache activity — {e}"
 
             next_run_advice = ""
             try:

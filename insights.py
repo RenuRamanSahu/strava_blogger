@@ -1,29 +1,24 @@
-"""Simple insight helpers that query the local SQLite store and compute basic signals.
-
-Functions:
-- acwr_summary(limit=28): returns recent ACWR values, average, max, and last value
-- acwr_risk_activities(threshold=1.2): returns activities where ACWR exceeds threshold
-"""
+"""Simple insight helpers that compute useful training signals from cached activities."""
 from typing import List, Dict, Any
 from statistics import mean
-import db
+from cache import get_cached_activities
 
 
 def acwr_summary(limit: int = 28) -> Dict[str, Any]:
-    rows = db.get_acwr_trend(limit=limit)
-    acwrs = [r.get('acwr') for r in rows if r.get('acwr') is not None]
+    activities = get_cached_activities()[:limit]
+    acwrs = [a.get('acwr') for a in activities if a.get('acwr') is not None]
     if not acwrs:
-        return {'count': 0, 'average': None, 'max': None, 'last': None, 'series': rows}
+        return {'count': 0, 'average': None, 'max': None, 'last': None, 'series': activities}
     return {
         'count': len(acwrs),
         'average': mean(acwrs),
         'max': max(acwrs),
-        'last': acwrs[0],  # get_acwr_trend returns newest-first
-        'series': rows,
+        'last': acwrs[0],
+        'series': activities,
     }
 
 
 def acwr_risk_activities(threshold: float = 1.2) -> List[Dict[str, Any]]:
     """Return recent activities where ACWR exceeds the given threshold."""
-    rows = db.get_recent_activities(limit=200)
-    return [r for r in rows if r.get('acwr') is not None and r.get('acwr') > threshold]
+    activities = get_cached_activities()[:200]
+    return [a for a in activities if a.get('acwr') is not None and a.get('acwr') > threshold]

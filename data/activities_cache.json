@@ -1,0 +1,36 @@
+{
+  "activities": [
+    {
+      "id": 12342,
+      "name": "Test Run 3",
+      "start_date": "2026-06-24T10:00:00Z",
+      "distance_km": 12.0,
+      "moving_time": 3600,
+      "elevation_m": 200,
+      "average_heartrate": 160,
+      "max_heartrate": 190
+    },
+    {
+      "id": 12341,
+      "name": "Test Run 2",
+      "start_date": "2026-06-24T10:00:00Z",
+      "distance_km": 11.0,
+      "moving_time": 3600,
+      "elevation_m": 150,
+      "average_heartrate": 155,
+      "max_heartrate": 185
+    },
+    {
+      "id": 12340,
+      "name": "Test Run 1",
+      "start_date": "2026-06-24T10:00:00Z",
+      "distance_km": 10.0,
+      "moving_time": 3600,
+      "elevation_m": 100,
+      "average_heartrate": 150,
+      "max_heartrate": 180
+    }
+  ],
+  "last_updated": "2026-06-24T16:24:20.641826",
+  "cache_window_days": 90
+}
